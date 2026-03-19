@@ -1,0 +1,35 @@
+port: 8080
+
+log_level: debug
+
+database:
+  host: localhost:5432
+  database: kumpul
+  username: postgres
+  password: postgres
+  maxIdleConns: 10
+  maxOpenConns: 25
+  connMaxLifeTime: 1h
+  connMaxIdleTime: 15m
+  pingInterval: 30s
+  retryAttempts: 3
+
+redis:
+  dial_timeout: 5s
+  write_timeout: 2s
+  read_timeout: 2s
+  max_idle_conn: 20
+  max_active_conn: 50
+  idle_timeout: 240s
+  max_conn_lifetime: 60s
+  cache_host: localhost:6379
+  lock_host: localhost:6379
+
+cache_ttl: 5m
+
+disable_caching: false
+
+google:
+  client_id: "your-google-client-id.apps.googleusercontent.com"
+  client_secret: "your-google-client-secret"
+  redirect_url: "http://localhost:8080/auth/google/callback/"
