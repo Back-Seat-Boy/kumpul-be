@@ -52,7 +52,7 @@ func DBPassword() string {
 }
 
 func DBDSN() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s/%s", DBUser(), DBPassword(), DBHost(), DBDatabase())
+	return fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=disable", DBUser(), DBPassword(), DBHost(), DBDatabase())
 }
 
 func MaxIdleConns() int {
@@ -167,4 +167,20 @@ func GoogleClientSecret() string {
 
 func GoogleRedirectURL() string {
 	return viper.GetString("google.redirect_url")
+}
+
+func CloudinaryCloudName() string {
+	return viper.GetString("cloudinary.cloud_name")
+}
+
+func CloudinaryAPIKey() string {
+	return viper.GetString("cloudinary.api_key")
+}
+
+func CloudinaryAPISecret() string {
+	return viper.GetString("cloudinary.api_secret")
+}
+
+func CloudinaryUploadFolder() string {
+	return viper.GetString("cloudinary.upload_folder")
 }

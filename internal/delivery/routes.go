@@ -16,13 +16,44 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 	api.Use(h.AuthMiddleware())
 	{
 		api.POST("/auth/logout/", h.Logout)
-		api.GET("/me/", h.GetMe)
+		api.GET("/users/me/", h.GetMe)
+		api.PATCH("/users/me/", h.UpdateMe)
 
-		api.GET("/users/", h.ListUsers)
-		api.GET("/users/:id/", h.GetUserByID)
-		api.PUT("/users/:id/", h.UpdateUser)
-		api.DELETE("/users/:id/", h.DeleteUser)
+		api.GET("/venues/", h.ListVenues)
+		api.POST("/venues/", h.CreateVenue)
+		api.PATCH("/venues/:id/", h.UpdateVenue)
+		api.DELETE("/venues/:id/", h.DeleteVenue)
+
+		api.GET("/events/", h.ListEvents)
+		api.POST("/events/", h.CreateEvent)
+		api.PATCH("/events/:id/status/", h.UpdateEventStatus)
+		api.PATCH("/events/:id/chosen-option/", h.UpdateEventChosenOption)
+
+		api.GET("/events/:event_id/options/", h.ListEventOptions)
+		api.POST("/events/:event_id/options/", h.CreateEventOption)
+		api.DELETE("/events/:event_id/options/:id/", h.DeleteEventOption)
+
+		api.POST("/events/:event_id/votes/", h.CastVote)
+		api.DELETE("/events/:event_id/votes/:option_id/", h.RemoveVote)
+
+		api.GET("/events/:event_id/participants/", h.ListParticipants)
+		api.POST("/events/:event_id/participants/", h.JoinEvent)
+		api.DELETE("/events/:event_id/participants/", h.LeaveEvent)
+
+		api.GET("/events/:event_id/payment/", h.GetPayment)
+		api.POST("/events/:event_id/payment/", h.CreatePayment)
+		api.POST("/events/:event_id/payment/claim/", h.ClaimPayment)
+		api.PATCH("/events/:event_id/payment/records/:user_id/", h.ConfirmPayment)
+
+		api.GET("/events/:event_id/whatsapp/venue/", h.GenerateVenueWhatsAppLink)
+		api.GET("/events/:event_id/whatsapp/nudge/:user_id/", h.GenerateNudgeWhatsAppLink)
+
+		api.POST("/uploads/image/", h.UploadImage)
 	}
+
+	e.GET("/events/:token/", h.GetEventByToken)
+	e.GET("/events/:token/options/", h.ListEventOptions)
+	e.GET("/events/:token/participants/", h.ListParticipants)
 
 	e.GET("/", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, successResponse("Welcome to kumpul-be API", map[string]string{

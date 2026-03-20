@@ -23,7 +23,7 @@ func (h *APIHandler) GoogleCallback(c echo.Context) error {
 
 	sessionID, user, err := h.authUsecase.HandleGoogleCallback(ctx, code)
 	if err != nil {
-		log.WithFields(log.Fields{"context": utils.DumpOutGoingContext(ctx), "code": code}).Error()
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "code": code}).Error()
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
@@ -40,7 +40,7 @@ func (h *APIHandler) Logout(c echo.Context) error {
 	if sessionID != "" {
 		err := h.authUsecase.Logout(ctx, sessionID)
 		if err != nil {
-			log.WithFields(log.Fields{"context": utils.DumpOutGoingContext(ctx), "sessionID": sessionID}).Error()
+			log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "sessionID": sessionID}).Error()
 			return echo.NewHTTPError(http.StatusInternalServerError, err)
 		}
 	}

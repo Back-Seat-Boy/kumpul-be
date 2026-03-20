@@ -1,5 +1,5 @@
--- +goose Up
--- +goose StatementBegin
+-- +migrate Up
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE users (
@@ -16,9 +16,9 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_google_id ON users(google_id);
 CREATE INDEX idx_users_email ON users(email);
--- +goose StatementEnd
 
--- +goose Down
--- +goose StatementBegin
+
+-- +migrate Down
+
 DROP TABLE IF EXISTS users;
--- +goose StatementEnd
+
