@@ -141,12 +141,14 @@ func (u *authUsecase) findOrCreateUser(ctx context.Context, googleUser *model.Go
 	})
 
 	user, err := u.userRepo.FindByGoogleID(ctx, googleUser.ID)
-	if err == nil {
-		return user, nil
+	if err != nil {
+		if err != model.ErrUserNotFound {
+			logger.Error(err)
+			return nil, err
+		}
 	}
-	if err != model.ErrUserNotFound {
-		logger.Error(err)
-		return nil, err
+	if user != nil {
+		return user, nil
 	}
 
 	user = &model.User{
