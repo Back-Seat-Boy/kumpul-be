@@ -45,7 +45,7 @@ func (u *authUsecase) GetGoogleLoginURL(ctx context.Context) string {
 	return u.oauthConfig.AuthCodeURL("")
 }
 
-func (u *authUsecase) HandleGoogleCallback(ctx context.Context, code string) (string, *model.User, error) {
+func (u *authUsecase) HandleGoogleCallback(ctx context.Context, code string) (*model.Session, *model.User, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
 		"code":    code,
@@ -53,22 +53,22 @@ func (u *authUsecase) HandleGoogleCallback(ctx context.Context, code string) (st
 	googleUser, err := u.exchangeCodeForUser(ctx, code)
 	if err != nil {
 		logger.Error(err)
-		return "", nil, err
+		return nil, nil, err
 	}
 
 	user, err := u.findOrCreateUser(ctx, googleUser)
 	if err != nil {
 		logger.Error(err)
-		return "", nil, err
+		return nil, nil, err
 	}
-
+	fmt.Println("create session for user:", user.ID)
 	session, err := u.sessionUC.Create(ctx, user)
 	if err != nil {
 		logger.Error(err)
-		return "", nil, err
+		return nil, nil, err
 	}
-
-	return session.ID, user, nil
+	fmt.Println("created session:", session.ID)
+	return session, user, nil
 }
 
 func (u *authUsecase) Logout(ctx context.Context, sessionID string) error {

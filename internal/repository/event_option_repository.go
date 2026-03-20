@@ -27,7 +27,7 @@ func (r *eventOptionRepo) FindByID(ctx context.Context, id string) (*model.Event
 	var option model.EventOption
 	if err := r.db.WithContext(ctx).Preload("Event").Preload("Venue").First(&option, "id = ?", id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrEventOptionNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find event option: %w", err)

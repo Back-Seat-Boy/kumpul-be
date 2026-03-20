@@ -14,7 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/kumparan/go-connect"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -32,10 +32,17 @@ func init() {
 
 func run(_ *cobra.Command, _ []string) {
 	e := echo.New()
-	e.Pre(middleware.AddTrailingSlash())
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+	e.HTTPErrorHandler = delivery.CustomHTTPErrorHandler
+	e.Pre(echoMiddleware.AddTrailingSlash())
+	e.Use(echoMiddleware.Logger())
+	e.Use(echoMiddleware.Recover())
+	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
+		AllowOrigins:     config.CORSAllowedOrigins(),
+		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.PATCH, echo.DELETE, echo.OPTIONS},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowCredentials: config.CORSAllowCredentials(),
+	}))
+	e.Use(echoMiddleware.GzipWithConfig(echoMiddleware.GzipConfig{
 		Level: 5,
 	}))
 

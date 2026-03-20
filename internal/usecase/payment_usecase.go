@@ -40,6 +40,10 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		return nil, err
 	}
 
+	if participantCount == 0 {
+		return nil, model.ErrNoParticipantsInEvent
+	}
+
 	splitAmount := req.TotalCost / int(participantCount)
 
 	payment := &model.Payment{

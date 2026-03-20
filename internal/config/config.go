@@ -169,6 +169,18 @@ func GoogleRedirectURL() string {
 	return viper.GetString("google.redirect_url")
 }
 
+func CORSAllowedOrigins() []string {
+	return viper.GetStringSlice("cors.allowed_origins")
+}
+
+func CORSAllowCredentials() bool {
+	return viper.GetBool("cors.allow_credentials")
+}
+
+func FrontendURL() string {
+	return viper.GetString("frontend_url")
+}
+
 func CloudinaryCloudName() string {
 	return viper.GetString("cloudinary.cloud_name")
 }

@@ -16,13 +16,13 @@ func (h *APIHandler) GetPayment(c echo.Context) error {
 	payment, err := h.paymentUsecase.GetByEventID(ctx, eventID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	records, err := h.paymentRecordUsecase.GetByPaymentID(ctx, payment.ID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Payment retrieved", map[string]interface{}{
@@ -46,7 +46,7 @@ func (h *APIHandler) CreatePayment(c echo.Context) error {
 	payment, err := h.paymentUsecase.Create(ctx, eventID, &req)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "req": utils.Dump(req)}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Payment created", payment))
@@ -65,12 +65,12 @@ func (h *APIHandler) ClaimPayment(c echo.Context) error {
 	payment, err := h.paymentUsecase.GetByEventID(ctx, eventID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	if err := h.paymentRecordUsecase.Claim(ctx, payment.ID, user.ID, &req); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID, "userID": user.ID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Payment claimed", nil))
@@ -84,12 +84,12 @@ func (h *APIHandler) ConfirmPayment(c echo.Context) error {
 	payment, err := h.paymentUsecase.GetByEventID(ctx, eventID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	if err := h.paymentRecordUsecase.Confirm(ctx, payment.ID, userID); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID, "userID": userID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Payment confirmed", nil))

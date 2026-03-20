@@ -42,7 +42,7 @@ func (r *participantRepo) FindByEventIDAndUserID(ctx context.Context, eventID, u
 	var participant model.Participant
 	if err := r.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).First(&participant).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrParticipantNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find participant: %w", err)

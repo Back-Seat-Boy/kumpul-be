@@ -5,8 +5,15 @@ import "errors"
 // Common errors
 var (
 	// Not found errors
-	ErrUserNotFound    = errors.New("user not found")
-	ErrSessionNotFound = errors.New("session not found")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrSessionNotFound       = errors.New("session not found")
+	ErrEventNotFound         = errors.New("event not found")
+	ErrEventOptionNotFound   = errors.New("event option not found")
+	ErrPaymentNotFound       = errors.New("payment not found")
+	ErrPaymentRecordNotFound = errors.New("payment record not found")
+	ErrVenueNotFound         = errors.New("venue not found")
+	ErrParticipantNotFound   = errors.New("participant not found")
+	ErrVoteNotFound          = errors.New("vote not found")
 
 	// Validation errors
 	ErrInvalidEmail    = errors.New("invalid email")
@@ -19,6 +26,9 @@ var (
 	ErrInvalidState     = errors.New("invalid state parameter")
 	ErrInvalidCode      = errors.New("invalid authorization code")
 	ErrSessionExpired   = errors.New("session expired")
+
+	// Business logic errors
+	ErrNoParticipantsInEvent = errors.New("cannot create payment: no participants in event")
 
 	// Database errors
 	ErrDuplicateEmail   = errors.New("email already exists")

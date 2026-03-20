@@ -28,7 +28,7 @@ func (r *voteRepo) FindByEventOptionIDAndUserID(ctx context.Context, eventOption
 	var vote model.Vote
 	if err := r.db.WithContext(ctx).Where("event_option_id = ? AND user_id = ?", eventOptionID, userID).First(&vote).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrVoteNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find vote: %w", err)

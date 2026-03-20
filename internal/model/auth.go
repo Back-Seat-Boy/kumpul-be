@@ -19,7 +19,7 @@ type AuthConfig struct {
 
 type AuthUsecase interface {
 	GetGoogleLoginURL(ctx context.Context) string
-	HandleGoogleCallback(ctx context.Context, code string) (string, *User, error)
+	HandleGoogleCallback(ctx context.Context, code string) (*Session, *User, error)
 	Logout(ctx context.Context, sessionID string) error
 	ValidateSession(ctx context.Context, sessionID string) (*Session, *User, error)
 }

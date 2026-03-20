@@ -27,7 +27,7 @@ func (r *venueRepo) FindByID(ctx context.Context, id string) (*model.Venue, erro
 	var venue model.Venue
 	if err := r.db.WithContext(ctx).Preload("Creator").First(&venue, "id = ?", id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrVenueNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find venue: %w", err)

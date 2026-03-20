@@ -27,7 +27,7 @@ func (r *eventRepo) FindByID(ctx context.Context, id string) (*model.Event, erro
 	var event model.Event
 	if err := r.db.WithContext(ctx).Preload("Creator").Preload("ChosenOption").First(&event, "id = ?", id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrEventNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find event: %w", err)
@@ -44,7 +44,7 @@ func (r *eventRepo) FindByShareToken(ctx context.Context, token string) (*model.
 	var event model.Event
 	if err := r.db.WithContext(ctx).Preload("Creator").Preload("ChosenOption").First(&event, "share_token = ?", token).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrEventNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find event: %w", err)
@@ -60,6 +60,19 @@ func (r *eventRepo) FindByCreatedBy(ctx context.Context, createdBy string) ([]*m
 
 	var events []*model.Event
 	if err := r.db.WithContext(ctx).Where("created_by = ?", createdBy).Order("created_at desc").Find(&events).Error; err != nil {
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to list events: %w", err)
+	}
+	return events, nil
+}
+
+func (r *eventRepo) List(ctx context.Context) ([]*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+	})
+
+	var events []*model.Event
+	if err := r.db.WithContext(ctx).Order("created_at desc").Find(&events).Error; err != nil {
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}

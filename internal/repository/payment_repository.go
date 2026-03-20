@@ -27,7 +27,7 @@ func (r *paymentRepo) FindByID(ctx context.Context, id string) (*model.Payment, 
 	var payment model.Payment
 	if err := r.db.WithContext(ctx).First(&payment, "id = ?", id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrPaymentNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find payment: %w", err)
@@ -44,7 +44,7 @@ func (r *paymentRepo) FindByEventID(ctx context.Context, eventID string) (*model
 	var payment model.Payment
 	if err := r.db.WithContext(ctx).First(&payment, "event_id = ?", eventID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrPaymentNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find payment: %w", err)

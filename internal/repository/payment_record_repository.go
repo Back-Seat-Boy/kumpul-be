@@ -42,7 +42,7 @@ func (r *paymentRecordRepo) FindByPaymentIDAndUserID(ctx context.Context, paymen
 	var record model.PaymentRecord
 	if err := r.db.WithContext(ctx).Where("payment_id = ? AND user_id = ?", paymentID, userID).First(&record).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, model.ErrUserNotFound
+			return nil, model.ErrPaymentRecordNotFound
 		}
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find payment record: %w", err)

@@ -13,6 +13,16 @@ func (h *APIHandler) ListParticipants(c echo.Context) error {
 	ctx := c.Request().Context()
 	eventID := c.Param("event_id")
 
+	// If accessed via public route with token, look up event by share token
+	if eventID == "" {
+		token := c.Param("token")
+		event, err := h.eventUsecase.GetByShareToken(ctx, token)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusNotFound, "event not found")
+		}
+		eventID = event.ID
+	}
+
 	participants, err := h.participantUsecase.ListByEvent(ctx, eventID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID}).Error()

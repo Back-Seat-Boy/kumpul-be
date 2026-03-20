@@ -28,7 +28,7 @@ func (u *eventUsecase) GetByShareToken(ctx context.Context, token string) (*mode
 }
 
 func (u *eventUsecase) List(ctx context.Context) ([]*model.Event, error) {
-	return nil, nil
+	return u.eventRepo.List(ctx)
 }
 
 func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.CreateEventRequest) (*model.Event, error) {

@@ -1,14 +1,15 @@
 package delivery
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
+	"github.com/Back-Seat-Boy/kumpul-be/internal/config"
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/kumparan/go-utils"
 	"github.com/labstack/echo/v4"
+	log "github.com/sirupsen/logrus"
 )
 
 func (h *APIHandler) GoogleLogin(c echo.Context) error {
@@ -21,16 +22,30 @@ func (h *APIHandler) GoogleCallback(c echo.Context) error {
 	ctx := c.Request().Context()
 	code := c.QueryParam("code")
 
-	sessionID, user, err := h.authUsecase.HandleGoogleCallback(ctx, code)
+	session, user, err := h.authUsecase.HandleGoogleCallback(ctx, code)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "code": code}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		// Redirect to frontend with error
+		redirectURL := fmt.Sprintf("%s/auth/callback?error=%s", config.FrontendURL(), err.Error())
+		return c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 	}
 
-	return c.JSON(http.StatusOK, successResponse("Login successful", AuthResponse{
-		SessionID: sessionID,
-		User:      toUserInfo(user),
-	}))
+	// Redirect to frontend with session data including expires_at
+	redirectURL := fmt.Sprintf("%s/auth/callback?session_id=%s&expires_at=%s&user_id=%s&user_name=%s&user_email=%s&email_verified=%t&avatar_url=%s",
+		config.FrontendURL(),
+		session.ID,
+		session.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+		user.ID,
+		urlEncode(user.Name),
+		urlEncode(user.Email),
+		user.EmailVerified,
+		urlEncode(user.AvatarURL),
+	)
+	return c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+}
+
+func urlEncode(s string) string {
+	return strings.ReplaceAll(s, " ", "%20")
 }
 
 func (h *APIHandler) Logout(c echo.Context) error {
