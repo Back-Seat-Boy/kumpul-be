@@ -11,12 +11,11 @@ import (
 
 func (h *APIHandler) ListVenues(c echo.Context) error {
 	ctx := c.Request().Context()
-	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
 
-	venues, err := h.venueUsecase.ListByUser(ctx, user.ID)
+	venues, err := h.venueUsecase.ListAll(ctx)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx)}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Venues list retrieved", venues))

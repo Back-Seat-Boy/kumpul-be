@@ -12,10 +12,10 @@ import (
 func (h *APIHandler) ListEvents(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	events, err := h.eventUsecase.List(ctx)
+	events, err := h.eventUsecase.ListForDashboard(ctx)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx)}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Events list retrieved", events))
@@ -28,7 +28,7 @@ func (h *APIHandler) GetEventByToken(c echo.Context) error {
 	event, err := h.eventUsecase.GetByShareToken(ctx, token)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "token": token}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Event retrieved", event))
@@ -49,7 +49,7 @@ func (h *APIHandler) CreateEvent(c echo.Context) error {
 	event, err := h.eventUsecase.Create(ctx, user.ID, &req)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "req": utils.Dump(req)}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Event created", event))
@@ -69,7 +69,7 @@ func (h *APIHandler) UpdateEventStatus(c echo.Context) error {
 
 	if err := h.eventUsecase.UpdateStatus(ctx, id, req.Status); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "id": id, "status": req.Status}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Event status updated", nil))
@@ -89,7 +89,7 @@ func (h *APIHandler) UpdateEventChosenOption(c echo.Context) error {
 
 	if err := h.eventUsecase.UpdateChosenOption(ctx, id, req.OptionID); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "id": id, "optionID": req.OptionID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Event chosen option updated", nil))

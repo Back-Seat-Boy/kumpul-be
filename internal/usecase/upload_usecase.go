@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -33,8 +34,9 @@ func (u *uploadUsecase) UploadImage(ctx context.Context, req *model.UploadImageR
 		return nil, fmt.Errorf("failed to decode base64: %w", err)
 	}
 
-	// Upload to Cloudinary
-	uploadResult, err := u.cld.Upload.Upload(ctx, data, uploader.UploadParams{
+	// Upload to Cloudinary - wrap bytes in a reader
+	reader := bytes.NewReader(data)
+	uploadResult, err := u.cld.Upload.Upload(ctx, reader, uploader.UploadParams{
 		Folder: config.CloudinaryUploadFolder(),
 	})
 	if err != nil {

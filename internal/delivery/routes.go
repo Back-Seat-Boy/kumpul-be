@@ -30,6 +30,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.PATCH("/events/:id/chosen-option/", h.UpdateEventChosenOption)
 
 		api.GET("/events/:event_id/options/", h.ListEventOptions)
+		api.GET("/events/:event_id/options/with-voters/", h.ListEventOptionsWithVoters)
 		api.POST("/events/:event_id/options/", h.CreateEventOption)
 		api.DELETE("/events/:event_id/options/:id/", h.DeleteEventOption)
 
@@ -53,6 +54,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 
 	e.GET("/events/:token/", h.GetEventByToken)
 	e.GET("/events/:token/options/", h.ListEventOptions)
+	e.GET("/events/:token/options/with-voters/", h.ListEventOptionsWithVoters)
 	e.GET("/events/:token/participants/", h.ListParticipants)
 
 	e.GET("/", func(c echo.Context) error {

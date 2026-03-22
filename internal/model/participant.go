@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Participant struct {
@@ -17,6 +19,7 @@ type ParticipantRepository interface {
 	FindByEventID(ctx context.Context, eventID string) ([]*Participant, error)
 	FindByEventIDAndUserID(ctx context.Context, eventID, userID string) (*Participant, error)
 	Create(ctx context.Context, participant *Participant) error
+	CreateWithTx(ctx context.Context, tx *gorm.DB, participant *Participant) error
 	Delete(ctx context.Context, id string) error
 	CountByEventID(ctx context.Context, eventID string) (int64, error)
 }
@@ -26,4 +29,6 @@ type ParticipantUsecase interface {
 	Join(ctx context.Context, eventID string, userID string) error
 	Leave(ctx context.Context, eventID string, userID string) error
 	GetParticipantCount(ctx context.Context, eventID string) (int64, error)
+	HandlePaymentOnJoin(ctx context.Context, eventID string, userID string) error
+	HandlePaymentOnLeave(ctx context.Context, eventID string, userID string) error
 }

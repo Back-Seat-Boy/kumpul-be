@@ -61,6 +61,17 @@ func (r *paymentRecordRepo) Create(ctx context.Context, record *model.PaymentRec
 	return nil
 }
 
+func (r *paymentRecordRepo) CreateWithTx(ctx context.Context, tx *gorm.DB, record *model.PaymentRecord) error {
+	if err := tx.WithContext(ctx).Create(record).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":    utils.DumpIncomingContext(ctx),
+			"record": utils.Dump(record),
+		}).Error(err)
+		return fmt.Errorf("failed to create payment record: %w", err)
+	}
+	return nil
+}
+
 func (r *paymentRecordRepo) Update(ctx context.Context, record *model.PaymentRecord) error {
 	if err := r.db.WithContext(ctx).Save(record).Error; err != nil {
 		log.WithFields(log.Fields{
@@ -69,5 +80,36 @@ func (r *paymentRecordRepo) Update(ctx context.Context, record *model.PaymentRec
 		}).Error(err)
 		return fmt.Errorf("failed to update payment record: %w", err)
 	}
+	return nil
+}
+
+func (r *paymentRecordRepo) DeleteByPaymentIDAndUserID(ctx context.Context, paymentID, userID string) error {
+	if err := r.db.WithContext(ctx).Where("payment_id = ? AND user_id = ?", paymentID, userID).Delete(&model.PaymentRecord{}).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"paymentID": paymentID,
+			"userID":    userID,
+		}).Error(err)
+		return fmt.Errorf("failed to delete payment record: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRecordRepo) DeleteByPaymentIDAndUserIDWithTx(ctx context.Context, tx *gorm.DB, paymentID, userID string) error {
+	if err := tx.WithContext(ctx).Where("payment_id = ? AND user_id = ?", paymentID, userID).Delete(&model.PaymentRecord{}).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"paymentID": paymentID,
+			"userID":    userID,
+		}).Error(err)
+		return fmt.Errorf("failed to delete payment record: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRecordRepo) UpdateSplitAmountByPaymentID(ctx context.Context, paymentID string, splitAmount int) error {
+	// This updates all records' split amount (stored in Payment table, not PaymentRecord)
+	// This method is a no-op since split_amount is in Payment table
+	// Kept for interface consistency
 	return nil
 }

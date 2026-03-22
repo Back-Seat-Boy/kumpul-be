@@ -62,3 +62,27 @@ func (r *paymentRepo) Create(ctx context.Context, payment *model.Payment) error 
 	}
 	return nil
 }
+
+func (r *paymentRepo) UpdateSplitAmount(ctx context.Context, id string, splitAmount int) error {
+	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("split_amount", splitAmount).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":         utils.DumpIncomingContext(ctx),
+			"id":          id,
+			"splitAmount": splitAmount,
+		}).Error(err)
+		return fmt.Errorf("failed to update split amount: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRepo) UpdateSplitAmountWithTx(ctx context.Context, tx *gorm.DB, id string, splitAmount int) error {
+	if err := tx.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("split_amount", splitAmount).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":         utils.DumpIncomingContext(ctx),
+			"id":          id,
+			"splitAmount": splitAmount,
+		}).Error(err)
+		return fmt.Errorf("failed to update split amount: %w", err)
+	}
+	return nil
+}

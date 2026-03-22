@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type EventOption struct {
@@ -16,13 +18,22 @@ type EventOption struct {
 	Venue     Venue     `json:"venue,omitempty" gorm:"foreignKey:VenueID"`
 }
 
+type VoterInfo struct {
+	EventOptionID string `json:"event_option_id"`
+	UserID        string `json:"user_id"`
+	UserName      string `json:"user_name"`
+	AvatarURL     string `json:"avatar_url"`
+}
+
 type EventOptionWithVoteCount struct {
 	EventOption
-	VoteCount int64 `json:"vote_count"`
+	VoteCount int64       `json:"vote_count"`
+	HasVoted  bool        `json:"has_voted"`
+	Voters    []VoterInfo `json:"voters,omitempty"`
 }
 
 type CreateEventOptionRequest struct {
-	VenueID   string    `json:"venue_id" validate:"required"`
+	VenueID   string    `json:"venue_id"`
 	Date      time.Time `json:"date"`
 	StartTime string    `json:"start_time"`
 	EndTime   string    `json:"end_time"`
@@ -31,14 +42,18 @@ type CreateEventOptionRequest struct {
 type EventOptionRepository interface {
 	FindByID(ctx context.Context, id string) (*EventOption, error)
 	FindByEventID(ctx context.Context, eventID string) ([]*EventOption, error)
-	FindByEventIDWithVoteCount(ctx context.Context, eventID string) ([]*EventOptionWithVoteCount, error)
+	FindByEventIDWithVoteCount(ctx context.Context, eventID string, userID *string) ([]*EventOptionWithVoteCount, error)
+	FindVotersByOptionID(ctx context.Context, optionID string) ([]VoterInfo, error)
+	FindVotersByOptionIDs(ctx context.Context, optionID []string) ([]VoterInfo, error)
 	Create(ctx context.Context, option *EventOption) error
+	BulkCreateWithTx(ctx context.Context, tx *gorm.DB, options []*EventOption) error
 	Delete(ctx context.Context, id string) error
 }
 
 type EventOptionUsecase interface {
 	GetByID(ctx context.Context, id string) (*EventOption, error)
-	ListByEvent(ctx context.Context, eventID string) ([]*EventOptionWithVoteCount, error)
+	ListByEvent(ctx context.Context, eventID string, userID *string) ([]*EventOptionWithVoteCount, error)
+	ListByEventWithVoters(ctx context.Context, eventID string, userID *string) ([]*EventOptionWithVoteCount, error)
 	Create(ctx context.Context, eventID string, req *CreateEventOptionRequest) (*EventOption, error)
 	Delete(ctx context.Context, id string) error
 }

@@ -29,6 +29,9 @@ var (
 
 	// Business logic errors
 	ErrNoParticipantsInEvent = errors.New("cannot create payment: no participants in event")
+	ErrAlreadyVoted          = errors.New("already voted")
+	ErrNotVoted              = errors.New("not voted yet")
+	ErrAlreadyJoined         = errors.New("already joined")
 
 	// Database errors
 	ErrDuplicateEmail   = errors.New("email already exists")

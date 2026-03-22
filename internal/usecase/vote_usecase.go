@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/google/uuid"
@@ -27,7 +26,7 @@ func (u *voteUsecase) CastVote(ctx context.Context, userID string, req *model.Ca
 
 	_, err := u.voteRepo.FindByEventOptionIDAndUserID(ctx, req.EventOptionID, userID)
 	if err == nil {
-		return errors.New("already voted")
+		return model.ErrAlreadyVoted
 	}
 
 	vote := &model.Vote{
@@ -53,6 +52,9 @@ func (u *voteUsecase) RemoveVote(ctx context.Context, eventOptionID string, user
 
 	vote, err := u.voteRepo.FindByEventOptionIDAndUserID(ctx, eventOptionID, userID)
 	if err != nil {
+		if err == model.ErrVoteNotFound {
+			return model.ErrNotVoted
+		}
 		logger.Error(err)
 		return err
 	}

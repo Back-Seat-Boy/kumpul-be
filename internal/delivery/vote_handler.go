@@ -23,7 +23,7 @@ func (h *APIHandler) CastVote(c echo.Context) error {
 
 	if err := h.voteUsecase.CastVote(ctx, user.ID, &req); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "req": utils.Dump(req), "userID": user.ID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Vote casted", nil))
@@ -36,7 +36,7 @@ func (h *APIHandler) RemoveVote(c echo.Context) error {
 
 	if err := h.voteUsecase.RemoveVote(ctx, optionID, user.ID); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "optionID": optionID, "userID": user.ID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Vote removed", nil))

@@ -61,6 +61,17 @@ func (r *participantRepo) Create(ctx context.Context, participant *model.Partici
 	return nil
 }
 
+func (r *participantRepo) CreateWithTx(ctx context.Context, tx *gorm.DB, participant *model.Participant) error {
+	if err := tx.WithContext(ctx).Create(participant).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":         utils.DumpIncomingContext(ctx),
+			"participant": utils.Dump(participant),
+		}).Error(err)
+		return fmt.Errorf("failed to create participant: %w", err)
+	}
+	return nil
+}
+
 func (r *participantRepo) Delete(ctx context.Context, id string) error {
 	if err := r.db.WithContext(ctx).Delete(&model.Participant{}, "id = ?", id).Error; err != nil {
 		log.WithFields(log.Fields{

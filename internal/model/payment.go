@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Payment struct {
@@ -23,9 +25,12 @@ type PaymentRepository interface {
 	FindByID(ctx context.Context, id string) (*Payment, error)
 	FindByEventID(ctx context.Context, eventID string) (*Payment, error)
 	Create(ctx context.Context, payment *Payment) error
+	UpdateSplitAmount(ctx context.Context, id string, splitAmount int) error
+	UpdateSplitAmountWithTx(ctx context.Context, tx *gorm.DB, id string, splitAmount int) error
 }
 
 type PaymentUsecase interface {
 	GetByEventID(ctx context.Context, eventID string) (*Payment, error)
 	Create(ctx context.Context, eventID string, req *CreatePaymentRequest) (*Payment, error)
+	RecalculateSplitAmount(ctx context.Context, eventID string) error
 }

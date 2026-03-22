@@ -23,10 +23,16 @@ func (h *APIHandler) ListEventOptions(c echo.Context) error {
 		eventID = event.ID
 	}
 
-	options, err := h.eventOptionUsecase.ListByEvent(ctx, eventID)
+	// Get userID from context if authenticated
+	var userID *string
+	if user, ok := c.Get(string(model.ContextKeyUser)).(UserInfo); ok {
+		userID = &user.ID
+	}
+
+	options, err := h.eventOptionUsecase.ListByEvent(ctx, eventID, userID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Event options retrieved", options))
@@ -63,4 +69,33 @@ func (h *APIHandler) DeleteEventOption(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Event option deleted", nil))
+}
+
+func (h *APIHandler) ListEventOptionsWithVoters(c echo.Context) error {
+	ctx := c.Request().Context()
+	eventID := c.Param("event_id")
+
+	// If accessed via public route with token, look up event by share token
+	if eventID == "" {
+		token := c.Param("token")
+		event, err := h.eventUsecase.GetByShareToken(ctx, token)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusNotFound, "event not found")
+		}
+		eventID = event.ID
+	}
+
+	// Get userID from context if authenticated
+	var userID *string
+	if user, ok := c.Get(string(model.ContextKeyUser)).(UserInfo); ok {
+		userID = &user.ID
+	}
+
+	options, err := h.eventOptionUsecase.ListByEventWithVoters(ctx, eventID, userID)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Event options with voters retrieved", options))
 }

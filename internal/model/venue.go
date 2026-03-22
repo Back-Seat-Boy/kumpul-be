@@ -39,6 +39,7 @@ type UpdateVenueRequest struct {
 type VenueRepository interface {
 	FindByID(ctx context.Context, id string) (*Venue, error)
 	FindByCreatedBy(ctx context.Context, createdBy string) ([]*Venue, error)
+	ListAll(ctx context.Context) ([]*Venue, error)
 	Create(ctx context.Context, venue *Venue) error
 	Update(ctx context.Context, venue *Venue) error
 	Delete(ctx context.Context, id string) error
@@ -46,7 +47,7 @@ type VenueRepository interface {
 
 type VenueUsecase interface {
 	GetByID(ctx context.Context, id string) (*Venue, error)
-	ListByUser(ctx context.Context, userID string) ([]*Venue, error)
+	ListAll(ctx context.Context) ([]*Venue, error)
 	Create(ctx context.Context, userID string, req *CreateVenueRequest) (*Venue, error)
 	Update(ctx context.Context, id string, req *UpdateVenueRequest) (*Venue, error)
 	Delete(ctx context.Context, id string) error

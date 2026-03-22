@@ -49,6 +49,19 @@ func (r *venueRepo) FindByCreatedBy(ctx context.Context, createdBy string) ([]*m
 	return venues, nil
 }
 
+func (r *venueRepo) ListAll(ctx context.Context) ([]*model.Venue, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+	})
+
+	var venues []*model.Venue
+	if err := r.db.WithContext(ctx).Order("name asc").Find(&venues).Error; err != nil {
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to list venues: %w", err)
+	}
+	return venues, nil
+}
+
 func (r *venueRepo) Create(ctx context.Context, venue *model.Venue) error {
 	if err := r.db.WithContext(ctx).Create(venue).Error; err != nil {
 		log.WithFields(log.Fields{

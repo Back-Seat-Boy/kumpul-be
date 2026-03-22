@@ -79,8 +79,32 @@ func (r *eventRepo) List(ctx context.Context) ([]*model.Event, error) {
 	return events, nil
 }
 
+func (r *eventRepo) ListWithCreator(ctx context.Context) ([]*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+	})
+
+	var events []*model.Event
+	if err := r.db.WithContext(ctx).Preload("Creator").Order("created_at desc").Find(&events).Error; err != nil {
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to list events with creator: %w", err)
+	}
+	return events, nil
+}
+
 func (r *eventRepo) Create(ctx context.Context, event *model.Event) error {
 	if err := r.db.WithContext(ctx).Create(event).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":   utils.DumpIncomingContext(ctx),
+			"event": utils.Dump(event),
+		}).Error(err)
+		return fmt.Errorf("failed to create event: %w", err)
+	}
+	return nil
+}
+
+func (r *eventRepo) CreateWithTx(ctx context.Context, tx *gorm.DB, event *model.Event) error {
+	if err := tx.WithContext(ctx).Create(event).Error; err != nil {
 		log.WithFields(log.Fields{
 			"ctx":   utils.DumpIncomingContext(ctx),
 			"event": utils.Dump(event),

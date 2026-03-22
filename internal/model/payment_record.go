@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type PaymentRecordStatus string
@@ -32,7 +34,11 @@ type PaymentRecordRepository interface {
 	FindByPaymentID(ctx context.Context, paymentID string) ([]*PaymentRecord, error)
 	FindByPaymentIDAndUserID(ctx context.Context, paymentID, userID string) (*PaymentRecord, error)
 	Create(ctx context.Context, record *PaymentRecord) error
+	CreateWithTx(ctx context.Context, tx *gorm.DB, record *PaymentRecord) error
 	Update(ctx context.Context, record *PaymentRecord) error
+	DeleteByPaymentIDAndUserID(ctx context.Context, paymentID, userID string) error
+	DeleteByPaymentIDAndUserIDWithTx(ctx context.Context, tx *gorm.DB, paymentID, userID string) error
+	UpdateSplitAmountByPaymentID(ctx context.Context, paymentID string, splitAmount int) error
 }
 
 type PaymentRecordUsecase interface {

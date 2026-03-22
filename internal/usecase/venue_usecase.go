@@ -21,8 +21,8 @@ func (u *venueUsecase) GetByID(ctx context.Context, id string) (*model.Venue, er
 	return u.venueRepo.FindByID(ctx, id)
 }
 
-func (u *venueUsecase) ListByUser(ctx context.Context, userID string) ([]*model.Venue, error) {
-	return u.venueRepo.FindByCreatedBy(ctx, userID)
+func (u *venueUsecase) ListAll(ctx context.Context) ([]*model.Venue, error) {
+	return u.venueRepo.ListAll(ctx)
 }
 
 func (u *venueUsecase) Create(ctx context.Context, userID string, req *model.CreateVenueRequest) (*model.Venue, error) {
