@@ -10,11 +10,13 @@ import (
 )
 
 type paymentRecordUsecase struct {
-	recordRepo model.PaymentRecordRepository
+	recordRepo  model.PaymentRecordRepository
+	paymentRepo model.PaymentRepository
+	eventRepo   model.EventRepository
 }
 
-func NewPaymentRecordUsecase(recordRepo model.PaymentRecordRepository) model.PaymentRecordUsecase {
-	return &paymentRecordUsecase{recordRepo: recordRepo}
+func NewPaymentRecordUsecase(recordRepo model.PaymentRecordRepository, paymentRepo model.PaymentRepository, eventRepo model.EventRepository) model.PaymentRecordUsecase {
+	return &paymentRecordUsecase{recordRepo: recordRepo, paymentRepo: paymentRepo, eventRepo: eventRepo}
 }
 
 func (u *paymentRecordUsecase) GetByPaymentID(ctx context.Context, paymentID string) ([]*model.PaymentRecord, error) {
@@ -68,6 +70,49 @@ func (u *paymentRecordUsecase) Confirm(ctx context.Context, paymentID string, us
 	if err := u.recordRepo.Update(ctx, record); err != nil {
 		logger.Error(err)
 		return err
+	}
+
+	// check if all payments are confirmed and auto complete event
+	if err := u.checkAndCompleteEvent(ctx, paymentID); err != nil {
+		logger.WithError(err).Warn("Failed to check event completion status")
+	}
+
+	return nil
+}
+
+// checkAndCompleteEvent checks if all participants have confirmed payments and marks event as completed
+func (u *paymentRecordUsecase) checkAndCompleteEvent(ctx context.Context, paymentID string) error {
+	payment, err := u.paymentRepo.FindByID(ctx, paymentID)
+	if err != nil {
+		return err
+	}
+
+	event, err := u.eventRepo.FindByID(ctx, payment.EventID)
+	if err != nil {
+		return err
+	}
+
+	if event.Status != model.EventStatusPaymentOpen {
+		return nil
+	}
+
+	records, err := u.recordRepo.FindByPaymentID(ctx, paymentID)
+	if err != nil {
+		return err
+	}
+
+	allConfirmed := true
+	for _, record := range records {
+		if record.Status != model.PaymentRecordStatusConfirmed {
+			allConfirmed = false
+			break
+		}
+	}
+
+	if allConfirmed && len(records) > 0 {
+		if err := u.eventRepo.UpdateStatus(ctx, event.ID, model.EventStatusCompleted); err != nil {
+			return err
+		}
 	}
 
 	return nil

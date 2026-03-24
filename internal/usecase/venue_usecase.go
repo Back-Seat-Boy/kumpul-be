@@ -25,6 +25,53 @@ func (u *venueUsecase) ListAll(ctx context.Context) ([]*model.Venue, error) {
 	return u.venueRepo.ListAll(ctx)
 }
 
+func (u *venueUsecase) ListPaginated(ctx context.Context, req *model.ListVenuesRequest) (*model.ListVenuesResponse, error) {
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+	if req.Limit > 100 {
+		req.Limit = 100
+	}
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+
+	venues, total, err := u.venueRepo.ListPaginated(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(venues) == 0 {
+		return &model.ListVenuesResponse{
+			Venues:  []*model.Venue{},
+			Total:   total,
+			HasMore: false,
+		}, nil
+	}
+
+	nextCursor := ""
+	hasMore := false
+
+	if len(venues) > 0 {
+		lastVenue := venues[len(venues)-1]
+		nextCursor = lastVenue.ID
+
+		if req.Mode == model.PaginationModeCursor {
+			hasMore = int64(len(venues)) == int64(req.Limit) && total > int64(len(venues))
+		} else {
+			offset := req.Page * req.Limit
+			hasMore = int64(offset) < total
+		}
+	}
+
+	return &model.ListVenuesResponse{
+		Venues:     venues,
+		Total:      total,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	}, nil
+}
+
 func (u *venueUsecase) Create(ctx context.Context, userID string, req *model.CreateVenueRequest) (*model.Venue, error) {
 	venue := &model.Venue{
 		ID:             uuid.New().String(),

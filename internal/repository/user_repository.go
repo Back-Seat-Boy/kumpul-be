@@ -58,7 +58,7 @@ func (r *userRepo) FindByID(ctx context.Context, id string) (*model.User, error)
 		if err != nil {
 			logger.Error(err)
 		}
-		return nil, nil
+		return nil, model.ErrUserNotFound
 	default:
 		logger.Error(err)
 		return nil, err
@@ -102,7 +102,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 		if err != nil {
 			logger.Error(err)
 		}
-		return nil, nil
+		return nil, model.ErrUserNotFound
 	default:
 		logger.Error(err)
 		return nil, err
@@ -145,7 +145,7 @@ func (r *userRepo) FindByGoogleID(ctx context.Context, googleID string) (*model.
 		if err != nil {
 			logger.Error(err)
 		}
-		return nil, nil
+		return nil, model.ErrUserNotFound
 	default:
 		logger.Error(err)
 		return nil, err

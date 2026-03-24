@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"sync"
 	"time"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
@@ -38,10 +39,94 @@ func (u *eventUsecase) List(ctx context.Context) ([]*model.Event, error) {
 	return u.eventRepo.List(ctx)
 }
 
-func (u *eventUsecase) ListForDashboard(ctx context.Context) ([]*model.EventSummary, error) {
-	events, err := u.eventRepo.ListWithCreator(ctx)
+func (u *eventUsecase) ListForDashboard(ctx context.Context, req *model.ListEventsRequest) (*model.ListEventsResponse, error) {
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+	if req.Limit > 100 {
+		req.Limit = 100
+	}
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+
+	events, total, err := u.eventRepo.ListPaginated(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(events) == 0 {
+		return &model.ListEventsResponse{
+			Events:  []*model.EventSummary{},
+			Total:   total,
+			HasMore: false,
+		}, nil
+	}
+
+	eventIDs := make([]string, len(events))
+	chosenOptionIDs := make([]string, 0)
+	for i, e := range events {
+		eventIDs[i] = e.ID
+		if e.ChosenOptionID != nil {
+			chosenOptionIDs = append(chosenOptionIDs, *e.ChosenOptionID)
+		}
+	}
+
+	var (
+		voteCounts        map[string]int64
+		participantCounts map[string]int64
+		optionDetails     map[string]*model.ChosenOptionDetails
+		paymentCounts     map[string]*model.PaymentRecordCounts
+	)
+
+	var wg sync.WaitGroup
+	errChan := make(chan error, 4)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var err error
+		voteCounts, err = u.eventRepo.BulkFetchVoteCounts(ctx, eventIDs)
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var err error
+		participantCounts, err = u.eventRepo.BulkFetchParticipantCounts(ctx, eventIDs)
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var err error
+		optionDetails, err = u.eventRepo.BulkFetchChosenOptionDetails(ctx, chosenOptionIDs)
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var err error
+		paymentCounts, err = u.eventRepo.BulkFetchPaymentRecordCounts(ctx, eventIDs)
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		log.WithError(err).Warn("Failed to fetch bulk data for events")
 	}
 
 	summaries := make([]*model.EventSummary, len(events))
@@ -50,84 +135,66 @@ func (u *eventUsecase) ListForDashboard(ctx context.Context) ([]*model.EventSumm
 			Event: *event,
 		}
 
-		// Populate status-specific fields
 		switch event.Status {
 		case model.EventStatusVoting:
-			// Get total votes for this event
-			options, err := u.eventOptionRepo.FindByEventIDWithVoteCount(ctx, event.ID, nil)
-			if err == nil {
-				var totalVotes int64
-				for _, opt := range options {
-					totalVotes += opt.VoteCount
-				}
-				summary.TotalVotes = totalVotes
+			if count, ok := voteCounts[event.ID]; ok {
+				summary.TotalVotes = count
 			}
 
 		case model.EventStatusConfirmed, model.EventStatusOpen:
-			// Get participant count
-			count, err := u.participantRepo.CountByEventID(ctx, event.ID)
-			if err == nil {
+			if count, ok := participantCounts[event.ID]; ok {
 				summary.ParticipantCount = count
 			}
-			// Get chosen option details
 			if event.ChosenOptionID != nil {
-				option, err := u.eventOptionRepo.FindByID(ctx, *event.ChosenOptionID)
-				if err == nil && option != nil {
-					summary.EventDate = option.Date.Format("2006-01-02")
-					summary.EventTime = option.StartTime + " - " + option.EndTime
-					// Get venue name
-					venue, err := u.venueRepo.FindByID(ctx, option.VenueID)
-					if err == nil && venue != nil {
-						summary.VenueName = venue.Name
-					}
+				if details, ok := optionDetails[*event.ChosenOptionID]; ok {
+					summary.EventDate = details.Date
+					summary.EventTime = details.StartTime + " - " + details.EndTime
+					summary.VenueName = details.VenueName
 				}
 			}
 
 		case model.EventStatusPaymentOpen, model.EventStatusCompleted:
-			// Get participant count
-			count, err := u.participantRepo.CountByEventID(ctx, event.ID)
-			if err == nil {
+			if count, ok := participantCounts[event.ID]; ok {
 				summary.ParticipantCount = count
 			}
-			// Get chosen option details
 			if event.ChosenOptionID != nil {
-				option, err := u.eventOptionRepo.FindByID(ctx, *event.ChosenOptionID)
-				if err == nil && option != nil {
-					summary.EventDate = option.Date.Format("2006-01-02")
-					summary.EventTime = option.StartTime + " - " + option.EndTime
-					venue, err := u.venueRepo.FindByID(ctx, option.VenueID)
-					if err == nil && venue != nil {
-						summary.VenueName = venue.Name
-					}
+				if details, ok := optionDetails[*event.ChosenOptionID]; ok {
+					summary.EventDate = details.Date
+					summary.EventTime = details.StartTime + " - " + details.EndTime
+					summary.VenueName = details.VenueName
 				}
 			}
-			// Get payment record counts
-			payment, err := u.paymentRepo.FindByEventID(ctx, event.ID)
-			if err == nil && payment != nil {
-				records, err := u.paymentRecordRepo.FindByPaymentID(ctx, payment.ID)
-				if err == nil {
-					var pending, claimed, confirmed int64
-					for _, record := range records {
-						switch record.Status {
-						case model.PaymentRecordStatusPending:
-							pending++
-						case model.PaymentRecordStatusClaimed:
-							claimed++
-						case model.PaymentRecordStatusConfirmed:
-							confirmed++
-						}
-					}
-					summary.PendingCount = pending
-					summary.ClaimedCount = claimed
-					summary.ConfirmedCount = confirmed
-				}
+			if counts, ok := paymentCounts[event.ID]; ok {
+				summary.PendingCount = counts.Pending
+				summary.ClaimedCount = counts.Claimed
+				summary.ConfirmedCount = counts.Confirmed
 			}
 		}
 
 		summaries[i] = summary
 	}
 
-	return summaries, nil
+	nextCursor := ""
+	hasMore := false
+
+	if len(events) > 0 {
+		lastEvent := events[len(events)-1]
+		nextCursor = lastEvent.ID
+
+		if req.Mode == model.PaginationModeCursor {
+			hasMore = int64(len(events)) == int64(req.Limit) && total > int64(len(events))
+		} else {
+			offset := req.Page * req.Limit
+			hasMore = int64(offset) < total
+		}
+	}
+
+	return &model.ListEventsResponse{
+		Events:     summaries,
+		Total:      total,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	}, nil
 }
 
 func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.CreateEventRequest) (*model.Event, error) {
@@ -171,7 +238,6 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 		}
 	}
 
-	// Add creator as a participant automatically
 	participant := &model.Participant{
 		ID:       uuid.New().String(),
 		EventID:  event.ID,
@@ -213,6 +279,62 @@ func (u *eventUsecase) UpdateChosenOption(ctx context.Context, id string, option
 
 func (u *eventUsecase) Delete(ctx context.Context, id string) error {
 	return u.eventRepo.Delete(ctx, id)
+}
+
+// CheckAndCompleteEvent checks if all participants have confirmed payments and marks event as completed
+func (u *eventUsecase) CheckAndCompleteEvent(ctx context.Context, eventID string) error {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"eventID": eventID,
+	})
+
+	// Get event
+	event, err := u.eventRepo.FindByID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	// Only check if event is in payment_open status
+	if event.Status != model.EventStatusPaymentOpen {
+		return nil
+	}
+
+	// Get payment
+	payment, err := u.paymentRepo.FindByEventID(ctx, eventID)
+	if err != nil {
+		if err == model.ErrPaymentNotFound {
+			return nil
+		}
+		logger.Error(err)
+		return err
+	}
+
+	// Get all payment records
+	records, err := u.paymentRecordRepo.FindByPaymentID(ctx, payment.ID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	// Check if all records are confirmed
+	allConfirmed := true
+	for _, record := range records {
+		if record.Status != model.PaymentRecordStatusConfirmed {
+			allConfirmed = false
+			break
+		}
+	}
+
+	// If all confirmed, mark event as completed
+	if allConfirmed && len(records) > 0 {
+		if err := u.eventRepo.UpdateStatus(ctx, eventID, model.EventStatusCompleted); err != nil {
+			logger.Error(err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func generateShareToken() string {

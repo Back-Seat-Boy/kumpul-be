@@ -141,16 +141,33 @@ func (u *authUsecase) findOrCreateUser(ctx context.Context, googleUser *model.Go
 	})
 
 	user, err := u.userRepo.FindByGoogleID(ctx, googleUser.ID)
-	if err != nil {
-		if err != model.ErrUserNotFound {
-			logger.Error(err)
-			return nil, err
-		}
+	if err != nil && err != model.ErrUserNotFound {
+		logger.Error(err)
+		return nil, err
 	}
 	if user != nil {
 		return user, nil
 	}
 
+	user, err = u.userRepo.FindByEmail(ctx, googleUser.Email)
+	if err != nil && err != model.ErrUserNotFound {
+		logger.Error(err)
+		return nil, err
+	}
+	if user != nil {
+		// Update the Google ID 
+		user.GoogleID = googleUser.ID
+		user.Name = googleUser.Name
+		user.AvatarURL = googleUser.Picture
+		user.EmailVerified = googleUser.VerifiedEmail
+		if err := u.userRepo.Update(ctx, user); err != nil {
+			logger.Error(err)
+			return nil, err
+		}
+		return user, nil
+	}
+
+	// Create new user
 	user = &model.User{
 		ID:            uuid.New().String(),
 		GoogleID:      googleUser.ID,

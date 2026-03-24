@@ -36,10 +36,34 @@ type UpdateVenueRequest struct {
 	Notes          string `json:"notes"`
 }
 
+// ListVenuesFilter holds filter parameters for listing venues
+type ListVenuesFilter struct {
+	Search string // Search in name or address
+}
+
+// ListVenuesRequest holds pagination and filter parameters
+type ListVenuesRequest struct {
+	Mode   PaginationMode
+	Page   int    // For page-based pagination
+	Limit  int    // Page size or cursor limit
+	Cursor string // For cursor-based pagination (last venue ID)
+	Filter ListVenuesFilter
+}
+
+// ListVenuesResponse is the paginated response
+type ListVenuesResponse struct {
+	Venues     []*Venue `json:"venues"`
+	Total      int64    `json:"total,omitempty"`
+	NextCursor string   `json:"next_cursor,omitempty"`
+	HasMore    bool     `json:"has_more,omitempty"`
+}
+
 type VenueRepository interface {
 	FindByID(ctx context.Context, id string) (*Venue, error)
 	FindByCreatedBy(ctx context.Context, createdBy string) ([]*Venue, error)
 	ListAll(ctx context.Context) ([]*Venue, error)
+	// ListPaginated returns paginated venues with total count (filtering and pagination done in SQL)
+	ListPaginated(ctx context.Context, req *ListVenuesRequest) ([]*Venue, int64, error)
 	Create(ctx context.Context, venue *Venue) error
 	Update(ctx context.Context, venue *Venue) error
 	Delete(ctx context.Context, id string) error
@@ -48,6 +72,7 @@ type VenueRepository interface {
 type VenueUsecase interface {
 	GetByID(ctx context.Context, id string) (*Venue, error)
 	ListAll(ctx context.Context) ([]*Venue, error)
+	ListPaginated(ctx context.Context, req *ListVenuesRequest) (*ListVenuesResponse, error)
 	Create(ctx context.Context, userID string, req *CreateVenueRequest) (*Venue, error)
 	Update(ctx context.Context, id string, req *UpdateVenueRequest) (*Venue, error)
 	Delete(ctx context.Context, id string) error

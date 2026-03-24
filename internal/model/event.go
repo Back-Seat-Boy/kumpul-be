@@ -64,12 +64,63 @@ type EventSummary struct {
 	ConfirmedCount int64 `json:"confirmed_count,omitempty"`
 }
 
+// ChosenOptionDetails holds venue and time details for chosen option
+type ChosenOptionDetails struct {
+	Date      string
+	StartTime string
+	EndTime   string
+	VenueName string
+}
+
+// PaymentRecordCounts holds counts by status for payment records
+type PaymentRecordCounts struct {
+	Pending   int64
+	Claimed   int64
+	Confirmed int64
+}
+
+// ListEventsFilter holds filter parameters for listing events
+type ListEventsFilter struct {
+	Search    string      // Search in title
+	Status    EventStatus // Filter by status
+	EventDate string      // Filter by event date (YYYY-MM-DD)
+}
+
+// PaginationMode defines the pagination type
+type PaginationMode string
+
+const (
+	PaginationModePage   PaginationMode = "page"
+	PaginationModeCursor PaginationMode = "cursor"
+)
+
+// ListEventsRequest holds pagination and filter parameters
+type ListEventsRequest struct {
+	Mode   PaginationMode
+	Page   int    // For page-based pagination
+	Limit  int    // Page size or cursor limit
+	Cursor string // For cursor-based pagination (last event ID)
+	Filter ListEventsFilter
+}
+
+// ListEventsResponse is the paginated response
+type ListEventsResponse struct {
+	Events     []*EventSummary `json:"events"`
+	Total      int64           `json:"total,omitempty"`       // Total count for page mode
+	NextCursor string          `json:"next_cursor,omitempty"` // Next cursor for cursor mode
+	HasMore    bool            `json:"has_more,omitempty"`    // For cursor mode
+}
+
 type EventRepository interface {
 	FindByID(ctx context.Context, id string) (*Event, error)
 	FindByShareToken(ctx context.Context, token string) (*Event, error)
 	FindByCreatedBy(ctx context.Context, createdBy string) ([]*Event, error)
 	List(ctx context.Context) ([]*Event, error)
-	ListWithCreator(ctx context.Context) ([]*Event, error)
+	ListPaginated(ctx context.Context, req *ListEventsRequest) ([]*Event, int64, error)
+	BulkFetchVoteCounts(ctx context.Context, eventIDs []string) (map[string]int64, error)
+	BulkFetchParticipantCounts(ctx context.Context, eventIDs []string) (map[string]int64, error)
+	BulkFetchChosenOptionDetails(ctx context.Context, chosenOptionIDs []string) (map[string]*ChosenOptionDetails, error)
+	BulkFetchPaymentRecordCounts(ctx context.Context, eventIDs []string) (map[string]*PaymentRecordCounts, error)
 	Create(ctx context.Context, event *Event) error
 	CreateWithTx(ctx context.Context, tx *gorm.DB, event *Event) error
 	Update(ctx context.Context, event *Event) error
@@ -82,9 +133,11 @@ type EventUsecase interface {
 	GetByID(ctx context.Context, id string) (*Event, error)
 	GetByShareToken(ctx context.Context, token string) (*Event, error)
 	List(ctx context.Context) ([]*Event, error)
-	ListForDashboard(ctx context.Context) ([]*EventSummary, error)
+	ListForDashboard(ctx context.Context, req *ListEventsRequest) (*ListEventsResponse, error)
 	Create(ctx context.Context, userID string, req *CreateEventRequest) (*Event, error)
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error
+	// CheckAndCompleteEvent checks if all payments are confirmed and marks event as completed
+	CheckAndCompleteEvent(ctx context.Context, eventID string) error
 	Delete(ctx context.Context, id string) error
 }

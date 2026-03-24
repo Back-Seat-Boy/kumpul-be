@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/kumparan/go-utils"
@@ -12,13 +13,45 @@ import (
 func (h *APIHandler) ListEvents(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	events, err := h.eventUsecase.ListForDashboard(ctx)
+	// Parse pagination parameters
+	req := &model.ListEventsRequest{
+		Mode: model.PaginationModePage, // Default to page mode
+	}
+
+	// Parse mode
+	if mode := c.QueryParam("mode"); mode == "cursor" {
+		req.Mode = model.PaginationModeCursor
+	}
+
+	// Parse page
+	if pageStr := c.QueryParam("page"); pageStr != "" {
+		if page, err := strconv.Atoi(pageStr); err == nil {
+			req.Page = page
+		}
+	}
+
+	// Parse limit
+	if limitStr := c.QueryParam("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil {
+			req.Limit = limit
+		}
+	}
+
+	// Parse cursor
+	req.Cursor = c.QueryParam("cursor")
+
+	// Parse filters
+	req.Filter.Search = c.QueryParam("search")
+	req.Filter.Status = model.EventStatus(c.QueryParam("status"))
+	req.Filter.EventDate = c.QueryParam("event_date")
+
+	response, err := h.eventUsecase.ListForDashboard(ctx, req)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx)}).Error()
 		return err
 	}
 
-	return c.JSON(http.StatusOK, successResponse("Events list retrieved", events))
+	return c.JSON(http.StatusOK, successResponse("Events list retrieved", response))
 }
 
 func (h *APIHandler) GetEventByToken(c echo.Context) error {

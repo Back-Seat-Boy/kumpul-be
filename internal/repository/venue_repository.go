@@ -55,11 +55,67 @@ func (r *venueRepo) ListAll(ctx context.Context) ([]*model.Venue, error) {
 	})
 
 	var venues []*model.Venue
-	if err := r.db.WithContext(ctx).Order("name asc").Find(&venues).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Creator").Order("name asc").Find(&venues).Error; err != nil {
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to list venues: %w", err)
 	}
 	return venues, nil
+}
+
+// ListPaginated returns paginated venues with filtering done at SQL level
+func (r *venueRepo) ListPaginated(ctx context.Context, req *model.ListVenuesRequest) ([]*model.Venue, int64, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"req":     req,
+	})
+
+	// Build base query with filters
+	query := r.db.WithContext(ctx).Model(&model.Venue{}).Preload("Creator")
+
+	// Apply search filter (name or address ILIKE)
+	if req.Filter.Search != "" {
+		searchPattern := "%" + req.Filter.Search + "%"
+		query = query.Where("name ILIKE ? OR address ILIKE ?", searchPattern, searchPattern)
+	}
+
+	// Get total count before pagination
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		logger.Error(err)
+		return nil, 0, fmt.Errorf("failed to count venues: %w", err)
+	}
+
+	// Apply pagination
+	query = query.Order("name ASC")
+
+	if req.Mode == model.PaginationModeCursor && req.Cursor != "" {
+		// Cursor-based: get venues with name >= cursor's venue name
+		var cursorVenue model.Venue
+		if err := r.db.WithContext(ctx).First(&cursorVenue, "id = ?", req.Cursor).Error; err != nil {
+			logger.Error(err)
+			return nil, 0, fmt.Errorf("invalid cursor: %w", err)
+		}
+		query = query.Where("(name > ? OR (name = ? AND id > ?))", cursorVenue.Name, cursorVenue.Name, req.Cursor)
+	} else {
+		// Page-based offset
+		if req.Page <= 0 {
+			req.Page = 1
+		}
+		offset := (req.Page - 1) * req.Limit
+		query = query.Offset(offset)
+	}
+
+	// Apply limit
+	query = query.Limit(req.Limit)
+
+	// Execute query
+	var venues []*model.Venue
+	if err := query.Find(&venues).Error; err != nil {
+		logger.Error(err)
+		return nil, 0, fmt.Errorf("failed to list venues: %w", err)
+	}
+
+	return venues, total, nil
 }
 
 func (r *venueRepo) Create(ctx context.Context, venue *model.Venue) error {
