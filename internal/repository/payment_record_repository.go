@@ -113,3 +113,19 @@ func (r *paymentRecordRepo) UpdateSplitAmountByPaymentID(ctx context.Context, pa
 	// Kept for interface consistency
 	return nil
 }
+
+func (r *paymentRecordRepo) CountConfirmedByPaymentID(ctx context.Context, paymentID string) (int64, error) {
+	logger := log.WithFields(log.Fields{
+		"context":   utils.DumpIncomingContext(ctx),
+		"paymentID": paymentID,
+	})
+
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.PaymentRecord{}).
+		Where("payment_id = ? AND status = ?", paymentID, model.PaymentRecordStatusConfirmed).
+		Count(&count).Error; err != nil {
+		logger.Error(err)
+		return 0, fmt.Errorf("failed to count confirmed payment records: %w", err)
+	}
+	return count, nil
+}

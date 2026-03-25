@@ -38,6 +38,16 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		"paymentInfo": req.PaymentInfo,
 	})
 
+	// Check event status - can only create payment when status is "open"
+	event, err := u.eventRepo.FindByID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	if event.Status != model.EventStatusOpen {
+		return nil, model.ErrEventNotOpenForJoining
+	}
+
 	participantCount, err := u.participantRepo.CountByEventID(ctx, eventID)
 	if err != nil {
 		logger.Error(err)
@@ -64,13 +74,6 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		return nil, err
 	}
 
-	// Get event to find creator
-	event, err := u.eventRepo.FindByID(ctx, eventID)
-	if err != nil {
-		logger.Error(err)
-		return nil, err
-	}
-
 	// Create payment records for all current participants
 	participants, err := u.participantRepo.FindByEventID(ctx, eventID)
 	if err != nil {
@@ -89,6 +92,7 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		// Creator's payment record is auto-confirmed (they hold the money)
 		if p.UserID == event.CreatedBy {
 			record.Status = model.PaymentRecordStatusConfirmed
+			record.PaidAmount = splitAmount
 			now := time.Now()
 			record.ConfirmedAt = &now
 		}

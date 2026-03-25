@@ -57,3 +57,18 @@ func (h *APIHandler) LeaveEvent(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, successResponse("Left event", nil))
 }
+
+func (h *APIHandler) RemoveParticipant(c echo.Context) error {
+	ctx := c.Request().Context()
+	requester := c.Get(string(model.ContextKeyUser)).(UserInfo)
+	eventID := c.Param("event_id")
+	participantUserID := c.Param("user_id")
+
+	result, err := h.participantUsecase.RemoveParticipant(ctx, eventID, participantUserID, requester.ID)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID, "participantUserID": participantUserID, "requesterID": requester.ID}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Participant removed", result))
+}

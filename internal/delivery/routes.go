@@ -40,11 +40,13 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.GET("/events/:event_id/participants/", h.ListParticipants)
 		api.POST("/events/:event_id/participants/", h.JoinEvent)
 		api.DELETE("/events/:event_id/participants/", h.LeaveEvent)
+		api.DELETE("/events/:event_id/participants/:user_id/", h.RemoveParticipant)
 
 		api.GET("/events/:event_id/payment/", h.GetPayment)
 		api.POST("/events/:event_id/payment/", h.CreatePayment)
 		api.POST("/events/:event_id/payment/claim/", h.ClaimPayment)
 		api.PATCH("/events/:event_id/payment/records/:user_id/", h.ConfirmPayment)
+		api.POST("/events/:event_id/payment/records/:user_id/adjust/", h.AdjustPayment)
 
 		api.GET("/events/:event_id/whatsapp/venue/", h.GenerateVenueWhatsAppLink)
 		api.GET("/events/:event_id/whatsapp/nudge/:user_id/", h.GenerateNudgeWhatsAppLink)

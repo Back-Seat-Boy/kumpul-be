@@ -79,10 +79,10 @@ func run(_ *cobra.Command, _ []string) {
 	venueUC := usecase.NewVenueUsecase(venueRepo)
 	eventUC := usecase.NewEventUsecase(eventRepo, gormTransactioner, eventOptionRepo, participantRepo, paymentRepo, paymentRecordRepo, venueRepo)
 	eventOptionUC := usecase.NewEventOptionUsecase(eventOptionRepo)
-	voteUC := usecase.NewVoteUsecase(voteRepo)
+	voteUC := usecase.NewVoteUsecase(voteRepo, eventRepo, eventOptionRepo)
 	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, eventRepo, gormTransactioner)
 	paymentUC := usecase.NewPaymentUsecase(paymentRepo, paymentRecordRepo, participantRepo, eventRepo)
-	paymentRecordUC := usecase.NewPaymentRecordUsecase(paymentRecordRepo, paymentRepo, eventRepo)
+	paymentRecordUC := usecase.NewPaymentRecordUsecase(paymentRecordRepo, paymentRepo, eventRepo, participantRepo)
 	uploadUC := usecase.NewUploadUsecase(cld)
 
 	authCfg := model.AuthConfig{
