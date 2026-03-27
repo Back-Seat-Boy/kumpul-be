@@ -10,9 +10,11 @@ import (
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/Back-Seat-Boy/kumpul-be/internal/repository"
 	"github.com/Back-Seat-Boy/kumpul-be/internal/usecase"
+	"github.com/cloudinary/cloudinary-go/v2"
+	"github.com/go-playground/validator/v10"
 	"github.com/kumparan/go-connect"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -30,22 +32,58 @@ func init() {
 
 func run(_ *cobra.Command, _ []string) {
 	e := echo.New()
-	e.Pre(middleware.AddTrailingSlash())
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+	e.HTTPErrorHandler = delivery.CustomHTTPErrorHandler
+	e.Pre(echoMiddleware.AddTrailingSlash())
+	e.Use(echoMiddleware.Logger())
+	e.Use(echoMiddleware.Recover())
+	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
+		AllowOrigins:     config.CORSAllowedOrigins(),
+		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.PATCH, echo.DELETE, echo.OPTIONS},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowCredentials: config.CORSAllowCredentials(),
+	}))
+	e.Use(echoMiddleware.GzipWithConfig(echoMiddleware.GzipConfig{
 		Level: 5,
 	}))
+
+	validator := validator.New()
+	e.Validator = &model.CustomValidator{Validator: validator}
 
 	initializeCockroachConn()
 	cacheKeeper := newCacheKeeper()
 	db := connect.CockroachDB
 
+	// Initialize Cloudinary
+	cld, err := cloudinary.NewFromParams(
+		config.CloudinaryCloudName(),
+		config.CloudinaryAPIKey(),
+		config.CloudinaryAPISecret(),
+	)
+	if err != nil {
+		log.Fatal("failed to initialize cloudinary: ", err)
+	}
+
 	userRepo := repository.NewUserRepository(db, cacheKeeper)
 	sessionRepo := repository.NewSessionRepository(cacheKeeper)
+	venueRepo := repository.NewVenueRepository(db)
+	eventRepo := repository.NewEventRepository(db)
+	eventOptionRepo := repository.NewEventOptionRepository(db)
+	voteRepo := repository.NewVoteRepository(db)
+	participantRepo := repository.NewParticipantRepository(db)
+	paymentRepo := repository.NewPaymentRepository(db)
+	paymentRecordRepo := repository.NewPaymentRecordRepository(db)
+	gormTransactioner := repository.NewGormTransactioner(db)
 
 	sessionUC := usecase.NewSessionUsecase(sessionRepo)
 	userUC := usecase.NewUserUsecase(userRepo)
+	venueUC := usecase.NewVenueUsecase(venueRepo)
+	eventUC := usecase.NewEventUsecase(eventRepo, gormTransactioner, eventOptionRepo, participantRepo, paymentRepo, paymentRecordRepo, venueRepo)
+	eventOptionUC := usecase.NewEventOptionUsecase(eventOptionRepo)
+	voteUC := usecase.NewVoteUsecase(voteRepo, eventRepo, eventOptionRepo)
+	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, eventRepo, gormTransactioner)
+	paymentUC := usecase.NewPaymentUsecase(paymentRepo, paymentRecordRepo, participantRepo, eventRepo)
+	paymentRecordUC := usecase.NewPaymentRecordUsecase(paymentRecordRepo, paymentRepo, eventRepo, participantRepo)
+	uploadUC := usecase.NewUploadUsecase(cld)
 
 	authCfg := model.AuthConfig{
 		ClientID:     config.GoogleClientID(),
@@ -55,7 +93,19 @@ func run(_ *cobra.Command, _ []string) {
 	}
 	authUC := usecase.NewAuthUsecase(authCfg, userRepo, sessionUC)
 
-	apiHandler := delivery.NewAPIHandler(authUC, sessionUC, userUC)
+	apiHandler := delivery.NewAPIHandler(
+		authUC,
+		sessionUC,
+		userUC,
+		venueUC,
+		eventUC,
+		eventOptionUC,
+		voteUC,
+		participantUC,
+		paymentUC,
+		paymentRecordUC,
+		uploadUC,
+	)
 	apiHandler.Routes(e)
 
 	sigCh := make(chan os.Signal, 1)

@@ -33,3 +33,17 @@ google:
   client_id: "your-google-client-id.apps.googleusercontent.com"
   client_secret: "your-google-client-secret"
   redirect_url: "http://localhost:8080/auth/google/callback/"
+
+cors:
+  allowed_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+  allow_credentials: true
+
+frontend_url: "http://localhost:5173"
+
+cloudinary:
+  cloud_name: "dz1q2dbty"
+  api_key: "769774269622767"
+  api_secret: "8cc6XVZbqGnZoAmb6yorifxl1U8"
+  upload_folder: "kumpul/payment-proofs"

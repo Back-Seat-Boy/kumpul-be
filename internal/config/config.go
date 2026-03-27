@@ -28,6 +28,13 @@ func Port() string {
 	return viper.GetString("port")
 }
 
+func Environment() string {
+	if !viper.IsSet("env") {
+		return "development"
+	}
+	return viper.GetString("env")
+}
+
 func GrpcPort() string {
 	if !viper.IsSet("grpc.port") {
 		return "9090"
@@ -52,7 +59,11 @@ func DBPassword() string {
 }
 
 func DBDSN() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s/%s", DBUser(), DBPassword(), DBHost(), DBDatabase())
+	ssl := "disable"
+	if Environment() != "local" {
+		ssl = "require"
+	}
+	return fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=%s", DBUser(), DBPassword(), DBHost(), DBDatabase(), ssl)
 }
 
 func MaxIdleConns() int {
@@ -167,4 +178,32 @@ func GoogleClientSecret() string {
 
 func GoogleRedirectURL() string {
 	return viper.GetString("google.redirect_url")
+}
+
+func CORSAllowedOrigins() []string {
+	return viper.GetStringSlice("cors.allowed_origins")
+}
+
+func CORSAllowCredentials() bool {
+	return viper.GetBool("cors.allow_credentials")
+}
+
+func FrontendURL() string {
+	return viper.GetString("frontend_url")
+}
+
+func CloudinaryCloudName() string {
+	return viper.GetString("cloudinary.cloud_name")
+}
+
+func CloudinaryAPIKey() string {
+	return viper.GetString("cloudinary.api_key")
+}
+
+func CloudinaryAPISecret() string {
+	return viper.GetString("cloudinary.api_secret")
+}
+
+func CloudinaryUploadFolder() string {
+	return viper.GetString("cloudinary.upload_folder")
 }

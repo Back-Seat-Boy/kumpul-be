@@ -22,6 +22,7 @@ func NewSessionRepository(keeper cacher.Keeper) model.SessionRepository {
 
 func (r *sessionRepo) Create(ctx context.Context, session *model.Session, ttl time.Duration) error {
 	key := fmt.Sprintf("session:%s", session.ID)
+	fmt.Println("store key")
 	if err := r.keeper.StoreWithoutBlocking(cacher.NewItemWithCustomTTL(key, utils.ToByte(session), ttl)); err != nil {
 		log.WithFields(log.Fields{
 			"context": utils.DumpIncomingContext(ctx),
@@ -65,9 +66,9 @@ func (r *sessionRepo) Delete(ctx context.Context, sessionID string) error {
 	key := fmt.Sprintf("session:%s", sessionID)
 	if err := r.keeper.DeleteByKeys([]string{key}); err != nil {
 		log.WithFields(log.Fields{
-			"ctx": utils.DumpIncomingContext(ctx),
+			"ctx":       utils.DumpIncomingContext(ctx),
 			"sessionID": sessionID,
-			"key": key,
+			"key":       key,
 		})
 		return fmt.Errorf("failed to delete session: %w", err)
 	}

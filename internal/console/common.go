@@ -35,10 +35,10 @@ func newCacheKeeper() cacher.Keeper {
 			MaxConnLifetime: config.RedisMaxConnLifetime(),
 		}
 
-		redisConn, err := connect.NewRedigoRedisConnectionPool(config.RedisCacheHost(), redisOpts)
+		redisConn, err := connect.NewRedigoRedisConnectionPool("redis://"+config.RedisCacheHost(), redisOpts)
 		continueOrFatal(err)
 
-		redisLockConn, err := connect.NewRedigoRedisConnectionPool(config.RedisLockHost(), redisOpts)
+		redisLockConn, err := connect.NewRedigoRedisConnectionPool("redis://"+config.RedisLockHost(), redisOpts)
 		continueOrFatal(err)
 
 		cacheKeeper.SetConnectionPool(redisConn)
