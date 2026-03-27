@@ -28,6 +28,13 @@ func Port() string {
 	return viper.GetString("port")
 }
 
+func Environment() string {
+	if !viper.IsSet("env") {
+		return "development"
+	}
+	return viper.GetString("env")
+}
+
 func GrpcPort() string {
 	if !viper.IsSet("grpc.port") {
 		return "9090"
@@ -52,7 +59,11 @@ func DBPassword() string {
 }
 
 func DBDSN() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=disable", DBUser(), DBPassword(), DBHost(), DBDatabase())
+	ssl := "disable"
+	if Environment() != "local" {
+		ssl = "require"
+	}
+	return fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=%s", DBUser(), DBPassword(), DBHost(), DBDatabase(), ssl)
 }
 
 func MaxIdleConns() int {
