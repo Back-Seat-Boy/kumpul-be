@@ -59,9 +59,9 @@ func DBPassword() string {
 }
 
 func DBDSN() string {
-	ssl := "disable"
-	if Environment() != "local" {
-		ssl = "require"
+	ssl := "require"
+	if Environment() != "production" {
+		ssl = "disable"
 	}
 	return fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=%s", DBUser(), DBPassword(), DBHost(), DBDatabase(), ssl)
 }
