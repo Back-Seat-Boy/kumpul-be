@@ -15,6 +15,7 @@ const (
 	EventStatusOpen        EventStatus = "open"
 	EventStatusPaymentOpen EventStatus = "payment_open"
 	EventStatusCompleted   EventStatus = "completed"
+	EventStatusCancelled   EventStatus = "cancelled"
 )
 
 type Event struct {

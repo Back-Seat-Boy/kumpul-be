@@ -6,6 +6,7 @@ import (
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/google/uuid"
+	"github.com/guregu/null"
 	"github.com/kumparan/go-utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -39,17 +40,10 @@ func (u *participantUsecase) Join(ctx context.Context, eventID string, userID st
 		"userID":  userID,
 	})
 
-	// Check event status - can join when status is "open" or "payment_open"
-	event, err := u.eventRepo.FindByID(ctx, eventID)
+	_, err := u.checkEventStatusForJoining(ctx, eventID)
 	if err != nil {
 		logger.Error(err)
 		return err
-	}
-	if event.Status == model.EventStatusCompleted {
-		return model.ErrEventAlreadyCompleted
-	}
-	if event.Status != model.EventStatusOpen && event.Status != model.EventStatusPaymentOpen {
-		return model.ErrEventNotOpenForJoining
 	}
 
 	_, err = u.participantRepo.FindByEventIDAndUserID(ctx, eventID, userID)
@@ -60,7 +54,7 @@ func (u *participantUsecase) Join(ctx context.Context, eventID string, userID st
 	participant := &model.Participant{
 		ID:       uuid.New().String(),
 		EventID:  eventID,
-		UserID:   userID,
+		UserID:   null.StringFrom(userID),
 		JoinedAt: time.Now(),
 	}
 
@@ -70,7 +64,7 @@ func (u *participantUsecase) Join(ctx context.Context, eventID string, userID st
 	}
 
 	// Handle payment record creation if payment exists
-	if err := u.HandlePaymentOnJoin(ctx, eventID, userID); err != nil {
+	if err := u.HandlePaymentOnJoin(ctx, eventID, participant.ID); err != nil {
 		logger.Error(err)
 		// Don't fail the join if payment handling fails, just log it
 	}
@@ -94,6 +88,9 @@ func (u *participantUsecase) Leave(ctx context.Context, eventID string, userID s
 	if event.Status == model.EventStatusCompleted {
 		return model.ErrEventAlreadyCompleted
 	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return err
+	}
 
 	participant, err := u.participantRepo.FindByEventIDAndUserID(ctx, eventID, userID)
 	if err != nil {
@@ -102,7 +99,7 @@ func (u *participantUsecase) Leave(ctx context.Context, eventID string, userID s
 	}
 
 	// Handle payment record deletion before removing participant
-	if err := u.HandlePaymentOnLeave(ctx, eventID, userID); err != nil {
+	if err := u.HandlePaymentOnLeave(ctx, eventID, participant.ID); err != nil {
 		logger.Error(err)
 		// Don't fail the leave if payment handling fails, just log it
 	}
@@ -115,59 +112,37 @@ func (u *participantUsecase) Leave(ctx context.Context, eventID string, userID s
 	return nil
 }
 
-func (u *participantUsecase) RemoveParticipant(ctx context.Context, eventID string, participantUserID string, requesterUserID string) (*model.RemoveParticipantResult, error) {
+func (u *participantUsecase) PreviewRemoveParticipant(ctx context.Context, eventID string, participantID string, requesterUserID string) (*model.RemoveParticipantResult, error) {
+	event, participant, payment, totalParticipants, err := u.validateParticipantRemoval(ctx, eventID, participantID, requesterUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return u.buildRemoveParticipantResult(ctx, event, participant, payment, totalParticipants)
+}
+
+func (u *participantUsecase) RemoveParticipant(ctx context.Context, eventID string, participantID string, requesterUserID string) (*model.RemoveParticipantResult, error) {
 	logger := log.WithFields(log.Fields{
-		"context":           utils.DumpIncomingContext(ctx),
-		"eventID":           eventID,
-		"participantUserID": participantUserID,
-		"requesterUserID":   requesterUserID,
+		"context":         utils.DumpIncomingContext(ctx),
+		"eventID":         eventID,
+		"participantID":   participantID,
+		"requesterUserID": requesterUserID,
 	})
 
-	// Get event to verify requester is the creator and check status
-	event, err := u.eventRepo.FindByID(ctx, eventID)
+	event, participant, payment, totalParticipants, err := u.validateParticipantRemoval(ctx, eventID, participantID, requesterUserID)
 	if err != nil {
 		logger.Error(err)
 		return nil, err
 	}
 
-	// Cannot remove participants if event is completed
-	if event.Status == model.EventStatusCompleted {
-		return nil, model.ErrEventAlreadyCompleted
-	}
-
-	if event.CreatedBy != requesterUserID {
-		return nil, model.ErrForbidden
-	}
-
-	// Cannot remove creator
-	if participantUserID == event.CreatedBy {
-		return nil, model.ErrForbidden
-	}
-
-	participant, err := u.participantRepo.FindByEventIDAndUserID(ctx, eventID, participantUserID)
+	result, err := u.buildRemoveParticipantResult(ctx, event, participant, payment, totalParticipants)
 	if err != nil {
 		logger.Error(err)
 		return nil, err
 	}
-
-	// Get current payment info before removal for calculation
-	var oldSplitAmount int
-	var totalCost int
-	payment, err := u.paymentRepo.FindByEventID(ctx, eventID)
-	if err != nil && err != model.ErrPaymentNotFound {
-		logger.Error(err)
-		return nil, err
-	}
-	if err == nil {
-		oldSplitAmount = payment.SplitAmount
-		totalCost = payment.TotalCost
-	}
-
-	// Count total participants before removal
-	totalParticipants, _ := u.participantRepo.CountByEventID(ctx, eventID)
 
 	// Handle payment record deletion before removing participant
-	if err := u.HandlePaymentOnLeave(ctx, eventID, participantUserID); err != nil {
+	if err := u.HandlePaymentOnLeave(ctx, eventID, participant.ID); err != nil {
 		logger.Error(err)
 		// Don't fail if payment handling fails, just log it
 	}
@@ -177,67 +152,6 @@ func (u *participantUsecase) RemoveParticipant(ctx context.Context, eventID stri
 		return nil, err
 	}
 
-	// Calculate the financial impact
-	result := &model.RemoveParticipantResult{
-		RemovedParticipantID: participantUserID,
-		OldSplitAmount:       oldSplitAmount,
-		NumRemaining:         totalParticipants - 1,
-	}
-
-	if payment != nil && totalParticipants > 1 {
-		// Calculate new split amount
-		newSplitAmount := totalCost / int(totalParticipants-1)
-		result.NewSplitAmount = newSplitAmount
-
-		// Get all payment records to calculate actual total collected and per-person impact
-		allRecords, _ := u.paymentRecordRepo.FindByPaymentID(ctx, payment.ID)
-		var totalCollected int
-		var numPaidAfter int64
-		var impacts []model.RemoveParticipantImpact
-
-		for _, record := range allRecords {
-			// Skip the removed participant
-			if record.UserID == participantUserID {
-				continue
-			}
-			if record.Status == model.PaymentRecordStatusConfirmed {
-				numPaidAfter++
-				totalCollected += record.PaidAmount
-
-				// Calculate impact for each confirmed participant
-				diff := record.PaidAmount - newSplitAmount
-				action := ""
-				actionAmount := 0
-
-				if diff > 0 {
-					action = "receive_refund"
-					actionAmount = diff
-				} else if diff < 0 {
-					action = "pay_more"
-					actionAmount = -diff
-				} else {
-					action = "no_action"
-				}
-
-				impacts = append(impacts, model.RemoveParticipantImpact{
-					UserID:       record.UserID,
-					UserName:     record.User.Name,
-					PaidAmount:   record.PaidAmount,
-					NewSplit:     newSplitAmount,
-					Difference:   diff,
-					Action:       action,
-					ActionAmount: actionAmount,
-				})
-			}
-		}
-
-		result.NumPaidParticipants = numPaidAfter
-		result.TotalCollected = totalCollected
-		result.TotalShouldCollect = int(totalParticipants-1) * newSplitAmount
-		result.Difference = result.TotalCollected - result.TotalShouldCollect
-		result.Impacts = impacts
-	}
-
 	return result, nil
 }
 
@@ -245,11 +159,11 @@ func (u *participantUsecase) GetParticipantCount(ctx context.Context, eventID st
 	return u.participantRepo.CountByEventID(ctx, eventID)
 }
 
-func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID string, userID string) error {
+func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID string, participantID string) error {
 	logger := log.WithFields(log.Fields{
-		"context": utils.DumpIncomingContext(ctx),
-		"eventID": eventID,
-		"userID":  userID,
+		"context":       utils.DumpIncomingContext(ctx),
+		"eventID":       eventID,
+		"participantID": participantID,
 	})
 
 	// Check if payment exists for this event
@@ -270,18 +184,25 @@ func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID st
 		return err
 	}
 
+	participant, err := u.participantRepo.FindByID(ctx, participantID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
 	// Create payment record for new participant
 	record := &model.PaymentRecord{
-		ID:        uuid.New().String(),
-		PaymentID: payment.ID,
-		UserID:    userID,
-		Status:    model.PaymentRecordStatusPending,
+		ID:            uuid.New().String(),
+		PaymentID:     payment.ID,
+		ParticipantID: participantID,
+		Amount:        payment.BaseSplit,
+		Status:        model.PaymentRecordStatusPending,
 	}
 
 	// Creator's payment record is auto-confirmed (they hold the money)
-	if userID == event.CreatedBy {
+	if participant.UserID.Valid && participant.UserID.String == event.CreatedBy {
 		record.Status = model.PaymentRecordStatusConfirmed
-		record.PaidAmount = payment.SplitAmount
+		record.PaidAmount = record.Amount
 		now := time.Now()
 		record.ConfirmedAt = &now
 	}
@@ -302,8 +223,13 @@ func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID st
 	}
 
 	if participantCount > 0 {
-		newSplitAmount := payment.TotalCost / int(participantCount)
-		if err := u.paymentRepo.UpdateSplitAmountWithTx(ctx, tx, payment.ID, newSplitAmount); err != nil {
+		newBaseSplit := payment.TotalCost / int(participantCount)
+		if err := u.paymentRepo.UpdateBaseSplitWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
+			logger.Error(err)
+			u.gormTransactioner.Rollback(tx)
+			return err
+		}
+		if err := u.paymentRecordRepo.UpdateSplitAmountByPaymentIDWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
@@ -318,11 +244,11 @@ func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID st
 	return nil
 }
 
-func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID string, userID string) error {
+func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID string, participantID string) error {
 	logger := log.WithFields(log.Fields{
-		"context": utils.DumpIncomingContext(ctx),
-		"eventID": eventID,
-		"userID":  userID,
+		"context":       utils.DumpIncomingContext(ctx),
+		"eventID":       eventID,
+		"participantID": participantID,
 	})
 
 	// Check if payment exists for this event
@@ -338,7 +264,7 @@ func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID s
 
 	tx := u.gormTransactioner.Begin(ctx)
 	// Delete payment record for leaving participant
-	if err := u.paymentRecordRepo.DeleteByPaymentIDAndUserIDWithTx(ctx, tx, payment.ID, userID); err != nil {
+	if err := u.paymentRecordRepo.DeleteByPaymentIDAndParticipantIDWithTx(ctx, tx, payment.ID, participantID); err != nil {
 		logger.Error(err)
 		u.gormTransactioner.Rollback(tx)
 		return err
@@ -356,8 +282,13 @@ func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID s
 	// so we subtract 1 for the calculation
 	remainingCount := participantCount - 1
 	if remainingCount > 0 {
-		newSplitAmount := payment.TotalCost / int(remainingCount)
-		if err := u.paymentRepo.UpdateSplitAmountWithTx(ctx, tx, payment.ID, newSplitAmount); err != nil {
+		newBaseSplit := payment.TotalCost / int(remainingCount)
+		if err := u.paymentRepo.UpdateBaseSplitWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
+			logger.Error(err)
+			u.gormTransactioner.Rollback(tx)
+			return err
+		}
+		if err := u.paymentRecordRepo.UpdateSplitAmountByPaymentIDWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
@@ -370,4 +301,218 @@ func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID s
 	}
 
 	return nil
+}
+
+func (u *participantUsecase) validateParticipantRemoval(ctx context.Context, eventID string, participantID string, requesterUserID string) (*model.Event, *model.Participant, *model.Payment, int64, error) {
+	event, err := u.eventRepo.FindByID(ctx, eventID)
+	if err != nil {
+		return nil, nil, nil, 0, err
+	}
+	if event.Status == model.EventStatusCompleted {
+		return nil, nil, nil, 0, model.ErrEventAlreadyCompleted
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, nil, nil, 0, err
+	}
+	if event.CreatedBy != requesterUserID {
+		return nil, nil, nil, 0, model.ErrForbidden
+	}
+
+	participantByID, err := u.participantRepo.FindByID(ctx, participantID)
+	if err != nil {
+		return nil, nil, nil, 0, err
+	}
+	if participantByID.UserID.Valid && participantByID.UserID.String == event.CreatedBy {
+		return nil, nil, nil, 0, model.ErrForbidden
+	}
+
+	participant, err := u.participantRepo.FindByEventIDAndID(ctx, eventID, participantByID.ID)
+	if err != nil {
+		return nil, nil, nil, 0, err
+	}
+
+	payment, err := u.paymentRepo.FindByEventID(ctx, eventID)
+	if err != nil && err != model.ErrPaymentNotFound {
+		return nil, nil, nil, 0, err
+	}
+	if err == model.ErrPaymentNotFound {
+		payment = nil
+	}
+
+	totalParticipants, err := u.participantRepo.CountByEventID(ctx, eventID)
+	if err != nil {
+		return nil, nil, nil, 0, err
+	}
+
+	return event, participant, payment, totalParticipants, nil
+}
+
+func (u *participantUsecase) buildRemoveParticipantResult(ctx context.Context, _ *model.Event, participant *model.Participant, payment *model.Payment, totalParticipants int64) (*model.RemoveParticipantResult, error) {
+	result := &model.RemoveParticipantResult{
+		RemovedParticipantID: participant.ID,
+		NumRemaining:         totalParticipants - 1,
+	}
+
+	if payment == nil {
+		return result, nil
+	}
+
+	result.OldSplitAmount = payment.BaseSplit
+
+	record, err := u.paymentRecordRepo.FindByPaymentIDAndParticipantID(ctx, payment.ID, participant.ID)
+	if err != nil && err != model.ErrPaymentRecordNotFound {
+		return nil, err
+	}
+	if err == nil {
+		result.RemovedPayment = buildRemovedParticipantPayment(record)
+	}
+
+	if totalParticipants <= 1 {
+		return result, nil
+	}
+
+	newSplitAmount := payment.TotalCost / int(totalParticipants-1)
+	result.NewSplitAmount = newSplitAmount
+
+	allRecords, err := u.paymentRecordRepo.FindByPaymentID(ctx, payment.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var totalCollected int
+	var numPaidAfter int64
+	var impacts []model.RemoveParticipantImpact
+
+	for _, record := range allRecords {
+		if record.ParticipantID == participant.ID {
+			continue
+		}
+		if record.Status != model.PaymentRecordStatusConfirmed {
+			continue
+		}
+
+		numPaidAfter++
+		totalCollected += record.PaidAmount
+
+		diff := record.PaidAmount - newSplitAmount
+		action := ""
+		actionAmount := 0
+
+		if diff > 0 {
+			action = "receive_refund"
+			actionAmount = diff
+		} else if diff < 0 {
+			action = "pay_more"
+			actionAmount = -diff
+		} else {
+			action = "no_action"
+		}
+
+		impacts = append(impacts, model.RemoveParticipantImpact{
+			ParticipantID: record.ParticipantID,
+			DisplayName:   paymentRecordDisplayName(record),
+			PaidAmount:    record.PaidAmount,
+			NewSplit:      newSplitAmount,
+			Difference:    diff,
+			Action:        action,
+			ActionAmount:  actionAmount,
+		})
+	}
+
+	result.NumPaidParticipants = numPaidAfter
+	result.TotalCollected = totalCollected
+	result.TotalShouldCollect = int(totalParticipants-1) * newSplitAmount
+	result.Difference = result.TotalCollected - result.TotalShouldCollect
+	result.Impacts = impacts
+
+	return result, nil
+}
+
+func buildRemovedParticipantPayment(record *model.PaymentRecord) *model.RemovedParticipantPayment {
+	if record == nil {
+		return nil
+	}
+
+	var pendingClaimedAmount int
+	for _, claim := range record.Claims {
+		if claim.Status == model.PaymentClaimStatusClaimed {
+			pendingClaimedAmount += claim.ClaimedAmount
+		}
+	}
+
+	return &model.RemovedParticipantPayment{
+		ParticipantID:        record.ParticipantID,
+		DisplayName:          paymentRecordDisplayName(record),
+		Status:               string(record.Status),
+		Amount:               record.Amount,
+		PaidAmount:           record.PaidAmount,
+		RefundAmount:         record.PaidAmount,
+		PendingClaimedAmount: pendingClaimedAmount,
+		Claims:               record.Claims,
+	}
+}
+
+func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID string, req *model.JoinAsGuestRequest) error {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"userID":  userID,
+		"eventID": eventID,
+		"req":     utils.Dump(req),
+	})
+
+	// Check event status - can join when status is "open" or "payment_open"
+	_, err := u.checkEventStatusForJoining(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	_, err = u.participantRepo.FindByEventIDAndGuestName(ctx, eventID, req.GuestName)
+	if err == nil {
+		return model.ErrAlreadyJoined
+	}
+
+	participant := &model.Participant{
+		ID:        uuid.New().String(),
+		EventID:   eventID,
+		GuestName: req.GuestName,
+		AddedBy:   null.StringFrom(userID),
+		JoinedAt:  time.Now(),
+	}
+
+	if err := u.participantRepo.Create(ctx, participant); err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	// Handle payment record creation if payment exists
+	if err := u.HandlePaymentOnJoin(ctx, eventID, participant.ID); err != nil {
+		logger.Error(err)
+		// Don't fail the join if payment handling fails, just log it
+	}
+
+	return nil
+}
+
+func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eventID string) (*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"eventID": eventID,
+	})
+
+	event, err := u.eventRepo.FindByID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	if event.Status == model.EventStatusCompleted {
+		return nil, model.ErrEventAlreadyCompleted
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, err
+	}
+	if event.Status != model.EventStatusOpen && event.Status != model.EventStatusPaymentOpen {
+		return nil, model.ErrEventNotOpenForJoining
+	}
+	return event, nil
 }

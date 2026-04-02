@@ -11,6 +11,7 @@ type Venue struct {
 	Name           string    `json:"name" gorm:"not null"`
 	Address        string    `json:"address"`
 	WhatsappNumber string    `json:"whatsapp_number"`
+	MapsURL        string    `json:"maps_url"`
 	PricePerHour   int       `json:"price_per_hour"`
 	CourtCount     int       `json:"court_count"`
 	Notes          string    `json:"notes"`
@@ -22,6 +23,7 @@ type CreateVenueRequest struct {
 	Name           string `json:"name" validate:"required"`
 	Address        string `json:"address"`
 	WhatsappNumber string `json:"whatsapp_number"`
+	MapsURL        string `json:"maps_url"`
 	PricePerHour   int    `json:"price_per_hour"`
 	CourtCount     int    `json:"court_count"`
 	Notes          string `json:"notes"`
@@ -31,6 +33,7 @@ type UpdateVenueRequest struct {
 	Name           string `json:"name" validate:"required"`
 	Address        string `json:"address"`
 	WhatsappNumber string `json:"whatsapp_number"`
+	MapsURL        string `json:"maps_url"`
 	PricePerHour   int    `json:"price_per_hour"`
 	CourtCount     int    `json:"court_count"`
 	Notes          string `json:"notes"`

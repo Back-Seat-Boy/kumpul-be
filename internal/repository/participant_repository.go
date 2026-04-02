@@ -29,6 +29,9 @@ func (r *participantRepo) FindByEventID(ctx context.Context, eventID string) ([]
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to list participants: %w", err)
 	}
+	for _, participant := range participants {
+		participant.SetDerivedFields()
+	}
 	return participants, nil
 }
 
@@ -47,6 +50,7 @@ func (r *participantRepo) FindByEventIDAndUserID(ctx context.Context, eventID, u
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to find participant: %w", err)
 	}
+	participant.SetDerivedFields()
 	return &participant, nil
 }
 
@@ -95,4 +99,60 @@ func (r *participantRepo) CountByEventID(ctx context.Context, eventID string) (i
 		return 0, fmt.Errorf("failed to count participants: %w", err)
 	}
 	return count, nil
+}
+
+func (r *participantRepo) FindByEventIDAndGuestName(ctx context.Context, eventID, guestName string) (*model.Participant, error) {
+	logger := log.WithFields(log.Fields{
+		"context":   utils.DumpIncomingContext(ctx),
+		"eventID":   eventID,
+		"guestName": guestName,
+	})
+
+	var participant model.Participant
+	if err := r.db.WithContext(ctx).Where("event_id = ? AND guest_name = ?", eventID, guestName).First(&participant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, model.ErrParticipantNotFound
+		}
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to find participant: %w", err)
+	}
+	participant.SetDerivedFields()
+	return &participant, nil
+}
+
+func (r *participantRepo) FindByID(ctx context.Context, id string) (*model.Participant, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"id":      id,
+	})
+
+	var participant model.Participant
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&participant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, model.ErrParticipantNotFound
+		}
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to find participant: %w", err)
+	}
+	participant.SetDerivedFields()
+	return &participant, nil
+}
+
+func (r *participantRepo) FindByEventIDAndID(ctx context.Context, eventID, id string) (*model.Participant, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"eventID": eventID,
+		"id":      id,
+	})
+
+	var participant model.Participant
+	if err := r.db.WithContext(ctx).Where("event_id = ? AND id = ?", eventID, id).First(&participant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, model.ErrParticipantNotFound
+		}
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to find participant: %w", err)
+	}
+	participant.SetDerivedFields()
+	return &participant, nil
 }

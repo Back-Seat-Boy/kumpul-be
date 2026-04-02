@@ -63,26 +63,38 @@ func (r *paymentRepo) Create(ctx context.Context, payment *model.Payment) error 
 	return nil
 }
 
-func (r *paymentRepo) UpdateSplitAmount(ctx context.Context, id string, splitAmount int) error {
-	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("split_amount", splitAmount).Error; err != nil {
+func (r *paymentRepo) UpdateBaseSplit(ctx context.Context, id string, baseSplit int) error {
+	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("base_split", baseSplit).Error; err != nil {
 		log.WithFields(log.Fields{
-			"ctx":         utils.DumpIncomingContext(ctx),
-			"id":          id,
-			"splitAmount": splitAmount,
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"id":        id,
+			"baseSplit": baseSplit,
 		}).Error(err)
-		return fmt.Errorf("failed to update split amount: %w", err)
+		return fmt.Errorf("failed to update base split: %w", err)
 	}
 	return nil
 }
 
-func (r *paymentRepo) UpdateSplitAmountWithTx(ctx context.Context, tx *gorm.DB, id string, splitAmount int) error {
-	if err := tx.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("split_amount", splitAmount).Error; err != nil {
+func (r *paymentRepo) UpdateBaseSplitWithTx(ctx context.Context, tx *gorm.DB, id string, baseSplit int) error {
+	if err := tx.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("base_split", baseSplit).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"id":        id,
+			"baseSplit": baseSplit,
+		}).Error(err)
+		return fmt.Errorf("failed to update base split: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRepo) UpdatePaymentInfo(ctx context.Context, id string, paymentInfo string) error {
+	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("payment_info", paymentInfo).Error; err != nil {
 		log.WithFields(log.Fields{
 			"ctx":         utils.DumpIncomingContext(ctx),
 			"id":          id,
-			"splitAmount": splitAmount,
+			"paymentInfo": paymentInfo,
 		}).Error(err)
-		return fmt.Errorf("failed to update split amount: %w", err)
+		return fmt.Errorf("failed to update payment info: %w", err)
 	}
 	return nil
 }
