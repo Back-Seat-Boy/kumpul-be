@@ -75,7 +75,7 @@ func (h *APIHandler) GenerateNudgeWhatsAppLink(c echo.Context) error {
 
 	message := fmt.Sprintf("Hei %s, jangan lupa transfer Rp%d untuk %s ke %s. Terima kasih ya!",
 		participant.Name,
-		payment.SplitAmount,
+		payment.BaseSplit,
 		event.Title,
 		payment.PaymentInfo,
 	)

@@ -1,6 +1,8 @@
 package delivery
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
@@ -62,13 +64,35 @@ func (h *APIHandler) CreatePayment(c echo.Context) error {
 	return c.JSON(http.StatusOK, successResponse("Payment created", payment))
 }
 
+func (h *APIHandler) UpdatePayment(c echo.Context) error {
+	ctx := c.Request().Context()
+	requester := c.Get(string(model.ContextKeyUser)).(UserInfo)
+	eventID := c.Param("event_id")
+
+	var req model.UpdatePaymentRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	payment, err := h.paymentUsecase.UpdatePaymentInfo(ctx, eventID, requester.ID, &req)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID, "requesterID": requester.ID}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Payment updated", payment))
+}
+
 func (h *APIHandler) ClaimPayment(c echo.Context) error {
 	ctx := c.Request().Context()
 	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
 	eventID := c.Param("event_id")
 
 	var req model.ClaimPaymentRequest
-	if err := c.Bind(&req); err != nil {
+	if err := c.Bind(&req); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 
@@ -89,7 +113,15 @@ func (h *APIHandler) ClaimPayment(c echo.Context) error {
 func (h *APIHandler) ConfirmPayment(c echo.Context) error {
 	ctx := c.Request().Context()
 	eventID := c.Param("event_id")
-	userID := c.Param("user_id")
+	participantID := c.Param("participant_id")
+
+	var req model.ConfirmPaymentRequest
+	if err := c.Bind(&req); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	if req.Amount != nil && *req.Amount < 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "amount must be greater than or equal to 0")
+	}
 
 	payment, err := h.paymentUsecase.GetByEventID(ctx, eventID)
 	if err != nil {
@@ -97,8 +129,8 @@ func (h *APIHandler) ConfirmPayment(c echo.Context) error {
 		return err
 	}
 
-	if err := h.paymentRecordUsecase.Confirm(ctx, payment.ID, userID); err != nil {
-		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID, "userID": userID}).Error()
+	if err := h.paymentRecordUsecase.Confirm(ctx, payment.ID, participantID, &req); err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID, "participantID": participantID}).Error()
 		return err
 	}
 
@@ -109,7 +141,7 @@ func (h *APIHandler) AdjustPayment(c echo.Context) error {
 	ctx := c.Request().Context()
 	requester := c.Get(string(model.ContextKeyUser)).(UserInfo)
 	eventID := c.Param("event_id")
-	userID := c.Param("user_id")
+	participantID := c.Param("participant_id")
 
 	var req model.AdjustPaymentRequest
 	if err := c.Bind(&req); err != nil {
@@ -125,10 +157,31 @@ func (h *APIHandler) AdjustPayment(c echo.Context) error {
 		return err
 	}
 
-	if err := h.paymentRecordUsecase.AdjustPayment(ctx, payment.ID, userID, requester.ID, &req); err != nil {
-		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID, "userID": userID, "requesterID": requester.ID}).Error()
+	if err := h.paymentRecordUsecase.AdjustPayment(ctx, payment.ID, participantID, requester.ID, &req); err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID, "participantID": participantID, "requesterID": requester.ID}).Error()
 		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Payment adjusted", nil))
+}
+
+func (h *APIHandler) ChargeAllPayments(c echo.Context) error {
+	ctx := c.Request().Context()
+	requester := c.Get(string(model.ContextKeyUser)).(UserInfo)
+	eventID := c.Param("event_id")
+
+	var req model.ChargeAllRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	if err := h.paymentUsecase.ChargeAll(ctx, eventID, requester.ID, &req); err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID, "requesterID": requester.ID}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Charge applied to all payment records", nil))
 }

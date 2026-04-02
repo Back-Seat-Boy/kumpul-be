@@ -9,6 +9,7 @@ import (
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/google/uuid"
+	"github.com/guregu/null"
 	"github.com/kumparan/go-utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -241,7 +242,7 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 	participant := &model.Participant{
 		ID:       uuid.New().String(),
 		EventID:  event.ID,
-		UserID:   userID,
+		UserID:   null.StringFrom(userID),
 		JoinedAt: time.Now(),
 	}
 	if err := u.participantRepo.CreateWithTx(ctx, tx, participant); err != nil {
@@ -259,6 +260,13 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 }
 
 func (u *eventUsecase) UpdateStatus(ctx context.Context, id string, status model.EventStatus) error {
+	event, err := u.eventRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !isValidEventStatusTransition(event.Status, status) {
+		return model.ErrForbidden
+	}
 	return u.eventRepo.UpdateStatus(ctx, id, status)
 }
 
@@ -268,6 +276,15 @@ func (u *eventUsecase) UpdateChosenOption(ctx context.Context, id string, option
 		"id":       id,
 		"optionID": optionID,
 	})
+
+	event, err := u.eventRepo.FindByID(ctx, id)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return err
+	}
 
 	if err := u.eventRepo.UpdateChosenOption(ctx, id, optionID); err != nil {
 		logger.Error(err)

@@ -15,14 +15,16 @@ type paymentUsecase struct {
 	paymentRecordRepo model.PaymentRecordRepository
 	participantRepo   model.ParticipantRepository
 	eventRepo         model.EventRepository
+	paymentRecordUC   model.PaymentRecordUsecase
 }
 
-func NewPaymentUsecase(paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, participantRepo model.ParticipantRepository, eventRepo model.EventRepository) model.PaymentUsecase {
+func NewPaymentUsecase(paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, participantRepo model.ParticipantRepository, eventRepo model.EventRepository, paymentRecordUC model.PaymentRecordUsecase) model.PaymentUsecase {
 	return &paymentUsecase{
 		paymentRepo:       paymentRepo,
 		paymentRecordRepo: paymentRecordRepo,
 		participantRepo:   participantRepo,
 		eventRepo:         eventRepo,
+		paymentRecordUC:   paymentRecordUC,
 	}
 }
 
@@ -44,6 +46,9 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		logger.Error(err)
 		return nil, err
 	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, err
+	}
 	if event.Status != model.EventStatusOpen {
 		return nil, model.ErrEventNotOpenForJoining
 	}
@@ -58,13 +63,13 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		return nil, model.ErrNoParticipantsInEvent
 	}
 
-	splitAmount := req.TotalCost / int(participantCount)
+	baseSplit := req.TotalCost / int(participantCount)
 
 	payment := &model.Payment{
 		ID:          uuid.New().String(),
 		EventID:     eventID,
 		TotalCost:   req.TotalCost,
-		SplitAmount: splitAmount,
+		BaseSplit:   baseSplit,
 		PaymentInfo: req.PaymentInfo,
 		CreatedAt:   time.Now(),
 	}
@@ -83,16 +88,17 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 
 	for _, p := range participants {
 		record := &model.PaymentRecord{
-			ID:        uuid.New().String(),
-			PaymentID: payment.ID,
-			UserID:    p.UserID,
-			Status:    model.PaymentRecordStatusPending,
+			ID:            uuid.New().String(),
+			PaymentID:     payment.ID,
+			ParticipantID: p.ID,
+			Amount:        payment.BaseSplit,
+			Status:        model.PaymentRecordStatusPending,
 		}
 
 		// Creator's payment record is auto-confirmed (they hold the money)
-		if p.UserID == event.CreatedBy {
+		if p.UserID.Valid && p.UserID.String == event.CreatedBy {
 			record.Status = model.PaymentRecordStatusConfirmed
-			record.PaidAmount = splitAmount
+			record.PaidAmount = payment.BaseSplit
 			now := time.Now()
 			record.ConfirmedAt = &now
 		}
@@ -132,12 +138,69 @@ func (u *paymentUsecase) RecalculateSplitAmount(ctx context.Context, eventID str
 		return model.ErrNoParticipantsInEvent
 	}
 
-	newSplitAmount := payment.TotalCost / int(participantCount)
+	newBaseSplit := payment.TotalCost / int(participantCount)
 
-	if err := u.paymentRepo.UpdateSplitAmount(ctx, payment.ID, newSplitAmount); err != nil {
+	if err := u.paymentRepo.UpdateBaseSplit(ctx, payment.ID, newBaseSplit); err != nil {
+		logger.Error(err)
+		return err
+	}
+	if err := u.paymentRecordRepo.UpdateSplitAmountByPaymentID(ctx, payment.ID, newBaseSplit); err != nil {
 		logger.Error(err)
 		return err
 	}
 
 	return nil
+}
+
+func (u *paymentUsecase) UpdatePaymentInfo(ctx context.Context, eventID string, requesterID string, req *model.UpdatePaymentRequest) (*model.Payment, error) {
+	logger := log.WithFields(log.Fields{
+		"context":     utils.DumpIncomingContext(ctx),
+		"eventID":     eventID,
+		"requesterID": requesterID,
+	})
+
+	event, err := u.eventRepo.FindByID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	if event.CreatedBy != requesterID {
+		return nil, model.ErrForbidden
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, err
+	}
+	if event.Status != model.EventStatusPaymentOpen {
+		return nil, model.ErrEventNotInPaymentPhase
+	}
+
+	payment, err := u.paymentRepo.FindByEventID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+
+	if err := u.paymentRepo.UpdatePaymentInfo(ctx, payment.ID, req.PaymentInfo); err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	payment.PaymentInfo = req.PaymentInfo
+	return payment, nil
+}
+
+func (u *paymentUsecase) ChargeAll(ctx context.Context, eventID string, requesterID string, req *model.ChargeAllRequest) error {
+	logger := log.WithFields(log.Fields{
+		"context":     utils.DumpIncomingContext(ctx),
+		"eventID":     eventID,
+		"requesterID": requesterID,
+		"amount":      req.Amount,
+	})
+
+	payment, err := u.paymentRepo.FindByEventID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	return u.paymentRecordUC.ChargeAll(ctx, payment.ID, requesterID, req)
 }

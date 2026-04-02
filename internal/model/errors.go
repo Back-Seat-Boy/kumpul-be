@@ -21,11 +21,11 @@ var (
 	ErrInvalidSession  = errors.New("invalid session")
 
 	// Auth errors
-	ErrUnauthorized     = errors.New("unauthorized")
-	ErrForbidden        = errors.New("forbidden")
-	ErrInvalidState     = errors.New("invalid state parameter")
-	ErrInvalidCode      = errors.New("invalid authorization code")
-	ErrSessionExpired   = errors.New("session expired")
+	ErrUnauthorized   = errors.New("unauthorized")
+	ErrForbidden      = errors.New("forbidden")
+	ErrInvalidState   = errors.New("invalid state parameter")
+	ErrInvalidCode    = errors.New("invalid authorization code")
+	ErrSessionExpired = errors.New("session expired")
 
 	// Business logic errors
 	ErrNoParticipantsInEvent     = errors.New("cannot create payment: no participants in event")
@@ -35,13 +35,14 @@ var (
 	ErrPaymentRecordNotConfirmed = errors.New("payment record not confirmed")
 
 	// Event status errors
-	ErrEventNotOpenForJoining    = errors.New("event is not open for joining")
-	ErrEventNotInVotingPhase     = errors.New("event is not in voting phase")
-	ErrEventNotInPaymentPhase    = errors.New("event is not in payment phase")
-	ErrEventAlreadyCompleted     = errors.New("event is already completed")
+	ErrEventNotOpenForJoining = errors.New("event is not open for joining")
+	ErrEventNotInVotingPhase  = errors.New("event is not in voting phase")
+	ErrEventNotInPaymentPhase = errors.New("event is not in payment phase")
+	ErrEventAlreadyCompleted  = errors.New("event is already completed")
+	ErrEventCancelled         = errors.New("event is cancelled")
 
 	// Database errors
-	ErrDuplicateEmail   = errors.New("email already exists")
+	ErrDuplicateEmail    = errors.New("email already exists")
 	ErrDuplicateGoogleID = errors.New("google account already linked")
 )
 

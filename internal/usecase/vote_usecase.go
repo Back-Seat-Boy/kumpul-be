@@ -10,8 +10,8 @@ import (
 )
 
 type voteUsecase struct {
-	voteRepo       model.VoteRepository
-	eventRepo      model.EventRepository
+	voteRepo        model.VoteRepository
+	eventRepo       model.EventRepository
 	eventOptionRepo model.EventOptionRepository
 }
 
@@ -37,6 +37,9 @@ func (u *voteUsecase) CastVote(ctx context.Context, userID string, req *model.Ca
 	event, err := u.eventRepo.FindByID(ctx, eventOption.EventID)
 	if err != nil {
 		logger.Error(err)
+		return err
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
 		return err
 	}
 	if event.Status != model.EventStatusVoting {
@@ -80,6 +83,9 @@ func (u *voteUsecase) RemoveVote(ctx context.Context, eventOptionID string, user
 	event, err := u.eventRepo.FindByID(ctx, eventOption.EventID)
 	if err != nil {
 		logger.Error(err)
+		return err
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
 		return err
 	}
 	if event.Status != model.EventStatusVoting {

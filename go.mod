@@ -6,6 +6,7 @@ require (
 	github.com/cloudinary/cloudinary-go/v2 v2.15.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/google/uuid v1.6.0
+	github.com/guregu/null v4.0.0+incompatible
 	github.com/kumparan/cacher v1.20.0
 	github.com/kumparan/go-connect v1.25.0
 	github.com/kumparan/go-utils v1.44.1

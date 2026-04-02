@@ -79,6 +79,7 @@ func (u *venueUsecase) Create(ctx context.Context, userID string, req *model.Cre
 		Name:           req.Name,
 		Address:        req.Address,
 		WhatsappNumber: req.WhatsappNumber,
+		MapsURL:        req.MapsURL,
 		PricePerHour:   req.PricePerHour,
 		CourtCount:     req.CourtCount,
 		Notes:          req.Notes,
@@ -111,6 +112,7 @@ func (u *venueUsecase) Update(ctx context.Context, id string, req *model.UpdateV
 	existing.Name = req.Name
 	existing.Address = req.Address
 	existing.WhatsappNumber = req.WhatsappNumber
+	existing.MapsURL = req.MapsURL
 	existing.PricePerHour = req.PricePerHour
 	existing.CourtCount = req.CourtCount
 	existing.Notes = req.Notes
