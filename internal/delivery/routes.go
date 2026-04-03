@@ -47,6 +47,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.GET("/events/:event_id/payment/", h.GetPayment)
 		api.POST("/events/:event_id/payment/", h.CreatePayment)
 		api.PATCH("/events/:event_id/payment/", h.UpdatePayment)
+		api.PATCH("/events/:event_id/payment/config/", h.UpdatePaymentConfig)
 		api.POST("/events/:event_id/payment/claim/", h.ClaimPayment)
 		api.POST("/events/:event_id/payment/charge-all/", h.ChargeAllPayments)
 		api.PATCH("/events/:event_id/payment/records/:participant_id/", h.ConfirmPayment)

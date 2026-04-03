@@ -33,6 +33,7 @@ var (
 	ErrNotVoted                  = errors.New("not voted yet")
 	ErrAlreadyJoined             = errors.New("already joined")
 	ErrPaymentRecordNotConfirmed = errors.New("payment record not confirmed")
+	ErrPaymentConfigLocked       = errors.New("payment configuration can no longer be changed")
 
 	// Event status errors
 	ErrEventNotOpenForJoining = errors.New("event is not open for joining")

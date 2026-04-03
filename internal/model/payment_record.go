@@ -57,10 +57,13 @@ type PaymentRecordRepository interface {
 	Create(ctx context.Context, record *PaymentRecord) error
 	CreateWithTx(ctx context.Context, tx *gorm.DB, record *PaymentRecord) error
 	Update(ctx context.Context, record *PaymentRecord) error
+	UpdateWithTx(ctx context.Context, tx *gorm.DB, record *PaymentRecord) error
 	DeleteByPaymentIDAndParticipantID(ctx context.Context, paymentID, participantID string) error
 	DeleteByPaymentIDAndParticipantIDWithTx(ctx context.Context, tx *gorm.DB, paymentID, participantID string) error
 	UpdateSplitAmountByPaymentID(ctx context.Context, paymentID string, splitAmount int) error
 	UpdateSplitAmountByPaymentIDWithTx(ctx context.Context, tx *gorm.DB, paymentID string, splitAmount int) error
+	ShiftAmountsByPaymentID(ctx context.Context, paymentID string, delta int) error
+	ShiftAmountsByPaymentIDWithTx(ctx context.Context, tx *gorm.DB, paymentID string, delta int) error
 	CountConfirmedByPaymentID(ctx context.Context, paymentID string) (int64, error)
 }
 
