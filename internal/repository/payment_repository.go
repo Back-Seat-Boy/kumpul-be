@@ -87,6 +87,56 @@ func (r *paymentRepo) UpdateBaseSplitWithTx(ctx context.Context, tx *gorm.DB, id
 	return nil
 }
 
+func (r *paymentRepo) UpdateTotals(ctx context.Context, id string, totalCost, baseSplit int) error {
+	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"total_cost": totalCost,
+		"base_split": baseSplit,
+	}).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"id":        id,
+			"totalCost": totalCost,
+			"baseSplit": baseSplit,
+		}).Error(err)
+		return fmt.Errorf("failed to update payment totals: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRepo) UpdateTotalsWithTx(ctx context.Context, tx *gorm.DB, id string, totalCost, baseSplit int) error {
+	if err := tx.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"total_cost": totalCost,
+		"base_split": baseSplit,
+	}).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"id":        id,
+			"totalCost": totalCost,
+			"baseSplit": baseSplit,
+		}).Error(err)
+		return fmt.Errorf("failed to update payment totals: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRepo) UpdateConfigWithTx(ctx context.Context, tx *gorm.DB, id string, paymentType model.PaymentType, totalCost, baseSplit int) error {
+	if err := tx.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"type":       paymentType,
+		"total_cost": totalCost,
+		"base_split": baseSplit,
+	}).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"id":        id,
+			"type":      paymentType,
+			"totalCost": totalCost,
+			"baseSplit": baseSplit,
+		}).Error(err)
+		return fmt.Errorf("failed to update payment config: %w", err)
+	}
+	return nil
+}
+
 func (r *paymentRepo) UpdatePaymentInfo(ctx context.Context, id string, paymentInfo string) error {
 	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("payment_info", paymentInfo).Error; err != nil {
 		log.WithFields(log.Fields{

@@ -223,16 +223,23 @@ func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID st
 	}
 
 	if participantCount > 0 {
-		newBaseSplit := payment.TotalCost / int(participantCount)
-		if err := u.paymentRepo.UpdateBaseSplitWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
+		newTotalCost, newBaseSplit, amountDelta, err := recalculatePaymentAmounts(payment, int(participantCount))
+		if err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
 		}
-		if err := u.paymentRecordRepo.UpdateSplitAmountByPaymentIDWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
+		if err := u.paymentRepo.UpdateTotalsWithTx(ctx, tx, payment.ID, newTotalCost, newBaseSplit); err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
+		}
+		if payment.Type == model.PaymentTypeTotal {
+			if err := u.paymentRecordRepo.ShiftAmountsByPaymentIDWithTx(ctx, tx, payment.ID, amountDelta); err != nil {
+				logger.Error(err)
+				u.gormTransactioner.Rollback(tx)
+				return err
+			}
 		}
 	}
 
@@ -282,16 +289,23 @@ func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID s
 	// so we subtract 1 for the calculation
 	remainingCount := participantCount - 1
 	if remainingCount > 0 {
-		newBaseSplit := payment.TotalCost / int(remainingCount)
-		if err := u.paymentRepo.UpdateBaseSplitWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
+		newTotalCost, newBaseSplit, amountDelta, err := recalculatePaymentAmounts(payment, int(remainingCount))
+		if err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
 		}
-		if err := u.paymentRecordRepo.UpdateSplitAmountByPaymentIDWithTx(ctx, tx, payment.ID, newBaseSplit); err != nil {
+		if err := u.paymentRepo.UpdateTotalsWithTx(ctx, tx, payment.ID, newTotalCost, newBaseSplit); err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
+		}
+		if payment.Type == model.PaymentTypeTotal {
+			if err := u.paymentRecordRepo.ShiftAmountsByPaymentIDWithTx(ctx, tx, payment.ID, amountDelta); err != nil {
+				logger.Error(err)
+				u.gormTransactioner.Rollback(tx)
+				return err
+			}
 		}
 	}
 
@@ -371,7 +385,10 @@ func (u *participantUsecase) buildRemoveParticipantResult(ctx context.Context, _
 		return result, nil
 	}
 
-	newSplitAmount := payment.TotalCost / int(totalParticipants-1)
+	newTotalCost, newSplitAmount, _, err := recalculatePaymentAmounts(payment, int(totalParticipants-1))
+	if err != nil {
+		return nil, err
+	}
 	result.NewSplitAmount = newSplitAmount
 
 	allRecords, err := u.paymentRecordRepo.FindByPaymentID(ctx, payment.ID)
@@ -421,7 +438,7 @@ func (u *participantUsecase) buildRemoveParticipantResult(ctx context.Context, _
 
 	result.NumPaidParticipants = numPaidAfter
 	result.TotalCollected = totalCollected
-	result.TotalShouldCollect = int(totalParticipants-1) * newSplitAmount
+	result.TotalShouldCollect = newTotalCost
 	result.Difference = result.TotalCollected - result.TotalShouldCollect
 	result.Impacts = impacts
 

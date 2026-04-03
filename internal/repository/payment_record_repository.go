@@ -97,6 +97,17 @@ func (r *paymentRecordRepo) Update(ctx context.Context, record *model.PaymentRec
 	return nil
 }
 
+func (r *paymentRecordRepo) UpdateWithTx(ctx context.Context, tx *gorm.DB, record *model.PaymentRecord) error {
+	if err := tx.WithContext(ctx).Save(record).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":    utils.DumpIncomingContext(ctx),
+			"record": utils.Dump(record),
+		}).Error(err)
+		return fmt.Errorf("failed to update payment record: %w", err)
+	}
+	return nil
+}
+
 func (r *paymentRecordRepo) DeleteByPaymentIDAndParticipantID(ctx context.Context, paymentID, participantID string) error {
 	if err := r.db.WithContext(ctx).Where("payment_id = ? AND participant_id = ?", paymentID, participantID).Delete(&model.PaymentRecord{}).Error; err != nil {
 		log.WithFields(log.Fields{
@@ -145,6 +156,40 @@ func (r *paymentRecordRepo) UpdateSplitAmountByPaymentIDWithTx(ctx context.Conte
 			"splitAmount": splitAmount,
 		}).Error(err)
 		return fmt.Errorf("failed to update payment record split amount: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRecordRepo) ShiftAmountsByPaymentID(ctx context.Context, paymentID string, delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	if err := r.db.WithContext(ctx).Model(&model.PaymentRecord{}).
+		Where("payment_id = ?", paymentID).
+		Update("amount", gorm.Expr("amount + ?", delta)).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"paymentID": paymentID,
+			"delta":     delta,
+		}).Error(err)
+		return fmt.Errorf("failed to shift payment record amounts: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRecordRepo) ShiftAmountsByPaymentIDWithTx(ctx context.Context, tx *gorm.DB, paymentID string, delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	if err := tx.WithContext(ctx).Model(&model.PaymentRecord{}).
+		Where("payment_id = ?", paymentID).
+		Update("amount", gorm.Expr("amount + ?", delta)).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":       utils.DumpIncomingContext(ctx),
+			"paymentID": paymentID,
+			"delta":     delta,
+		}).Error(err)
+		return fmt.Errorf("failed to shift payment record amounts: %w", err)
 	}
 	return nil
 }

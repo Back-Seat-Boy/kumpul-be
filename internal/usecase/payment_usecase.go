@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
@@ -16,15 +17,17 @@ type paymentUsecase struct {
 	participantRepo   model.ParticipantRepository
 	eventRepo         model.EventRepository
 	paymentRecordUC   model.PaymentRecordUsecase
+	gormTransactioner model.GormTransactioner
 }
 
-func NewPaymentUsecase(paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, participantRepo model.ParticipantRepository, eventRepo model.EventRepository, paymentRecordUC model.PaymentRecordUsecase) model.PaymentUsecase {
+func NewPaymentUsecase(paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, participantRepo model.ParticipantRepository, eventRepo model.EventRepository, paymentRecordUC model.PaymentRecordUsecase, gormTransactioner model.GormTransactioner) model.PaymentUsecase {
 	return &paymentUsecase{
 		paymentRepo:       paymentRepo,
 		paymentRecordRepo: paymentRecordRepo,
 		participantRepo:   participantRepo,
 		eventRepo:         eventRepo,
 		paymentRecordUC:   paymentRecordUC,
+		gormTransactioner: gormTransactioner,
 	}
 }
 
@@ -63,13 +66,22 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		return nil, model.ErrNoParticipantsInEvent
 	}
 
-	baseSplit := req.TotalCost / int(participantCount)
+	paymentType, err := normalizePaymentType(req.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	totalCost, baseSplit, err := buildPaymentAmounts(paymentType, req.TotalCost, req.PerPersonAmount, int(participantCount))
+	if err != nil {
+		return nil, err
+	}
 
 	payment := &model.Payment{
 		ID:          uuid.New().String(),
 		EventID:     eventID,
-		TotalCost:   req.TotalCost,
+		TotalCost:   totalCost,
 		BaseSplit:   baseSplit,
+		Type:        paymentType,
 		PaymentInfo: req.PaymentInfo,
 		CreatedAt:   time.Now(),
 	}
@@ -138,15 +150,21 @@ func (u *paymentUsecase) RecalculateSplitAmount(ctx context.Context, eventID str
 		return model.ErrNoParticipantsInEvent
 	}
 
-	newBaseSplit := payment.TotalCost / int(participantCount)
-
-	if err := u.paymentRepo.UpdateBaseSplit(ctx, payment.ID, newBaseSplit); err != nil {
+	newTotalCost, newBaseSplit, amountDelta, err := recalculatePaymentAmounts(payment, int(participantCount))
+	if err != nil {
 		logger.Error(err)
 		return err
 	}
-	if err := u.paymentRecordRepo.UpdateSplitAmountByPaymentID(ctx, payment.ID, newBaseSplit); err != nil {
+
+	if err := u.paymentRepo.UpdateTotals(ctx, payment.ID, newTotalCost, newBaseSplit); err != nil {
 		logger.Error(err)
 		return err
+	}
+	if payment.Type == model.PaymentTypeTotal {
+		if err := u.paymentRecordRepo.ShiftAmountsByPaymentID(ctx, payment.ID, amountDelta); err != nil {
+			logger.Error(err)
+			return err
+		}
 	}
 
 	return nil
@@ -188,6 +206,97 @@ func (u *paymentUsecase) UpdatePaymentInfo(ctx context.Context, eventID string, 
 	return payment, nil
 }
 
+func (u *paymentUsecase) UpdatePaymentConfig(ctx context.Context, eventID string, requesterID string, req *model.UpdatePaymentConfigRequest) (*model.Payment, error) {
+	logger := log.WithFields(log.Fields{
+		"context":     utils.DumpIncomingContext(ctx),
+		"eventID":     eventID,
+		"requesterID": requesterID,
+		"req":         utils.Dump(req),
+	})
+
+	event, err := u.eventRepo.FindByID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	if event.CreatedBy != requesterID {
+		return nil, model.ErrForbidden
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, err
+	}
+	if event.Status != model.EventStatusOpen && event.Status != model.EventStatusPaymentOpen {
+		return nil, model.ErrEventNotInPaymentPhase
+	}
+
+	payment, err := u.paymentRepo.FindByEventID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+
+	participantCount, err := u.participantRepo.CountByEventID(ctx, eventID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+
+	paymentType, err := normalizePaymentType(req.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	totalCost, baseSplit, err := buildPaymentAmounts(paymentType, req.TotalCost, req.PerPersonAmount, int(participantCount))
+	if err != nil {
+		return nil, err
+	}
+
+	records, err := u.paymentRecordRepo.FindByPaymentID(ctx, payment.ID)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	if !paymentConfigEditable(records, event.CreatedBy) {
+		return nil, model.ErrPaymentConfigLocked
+	}
+
+	tx := u.gormTransactioner.Begin(ctx)
+	if err := u.paymentRepo.UpdateConfigWithTx(ctx, tx, payment.ID, paymentType, totalCost, baseSplit); err != nil {
+		logger.Error(err)
+		u.gormTransactioner.Rollback(tx)
+		return nil, err
+	}
+
+	for _, record := range records {
+		record.Amount = baseSplit
+		if record.Participant.UserID.Valid && record.Participant.UserID.String == event.CreatedBy {
+			record.Status = model.PaymentRecordStatusConfirmed
+			record.PaidAmount = baseSplit
+			now := time.Now()
+			record.ConfirmedAt = &now
+		} else {
+			record.Status = model.PaymentRecordStatusPending
+			record.PaidAmount = 0
+		}
+
+		if err := u.paymentRecordRepo.UpdateWithTx(ctx, tx, record); err != nil {
+			logger.Error(err)
+			u.gormTransactioner.Rollback(tx)
+			return nil, err
+		}
+	}
+
+	if err := u.gormTransactioner.Commit(tx); err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+
+	payment.Type = paymentType
+	payment.TotalCost = totalCost
+	payment.BaseSplit = baseSplit
+	return payment, nil
+}
+
 func (u *paymentUsecase) ChargeAll(ctx context.Context, eventID string, requesterID string, req *model.ChargeAllRequest) error {
 	logger := log.WithFields(log.Fields{
 		"context":     utils.DumpIncomingContext(ctx),
@@ -203,4 +312,70 @@ func (u *paymentUsecase) ChargeAll(ctx context.Context, eventID string, requeste
 	}
 
 	return u.paymentRecordUC.ChargeAll(ctx, payment.ID, requesterID, req)
+}
+
+func normalizePaymentType(raw string) (model.PaymentType, error) {
+	switch model.PaymentType(raw) {
+	case "":
+		return model.PaymentTypeTotal, nil
+	case model.PaymentTypeTotal:
+		return model.PaymentTypeTotal, nil
+	case model.PaymentTypePerPerson:
+		return model.PaymentTypePerPerson, nil
+	default:
+		return "", fmt.Errorf("invalid payment type: %s", raw)
+	}
+}
+
+func buildPaymentAmounts(paymentType model.PaymentType, totalCost, perPersonAmount, participantCount int) (int, int, error) {
+	if participantCount <= 0 {
+		return 0, 0, model.ErrNoParticipantsInEvent
+	}
+
+	switch paymentType {
+	case model.PaymentTypeTotal:
+		if totalCost <= 0 {
+			return 0, 0, fmt.Errorf("total_cost must be greater than 0 for total payment type")
+		}
+		return totalCost, totalCost / participantCount, nil
+	case model.PaymentTypePerPerson:
+		if perPersonAmount <= 0 {
+			return 0, 0, fmt.Errorf("per_person_amount must be greater than 0 for per_person payment type")
+		}
+		return perPersonAmount * participantCount, perPersonAmount, nil
+	default:
+		return 0, 0, fmt.Errorf("invalid payment type: %s", paymentType)
+	}
+}
+
+func recalculatePaymentAmounts(payment *model.Payment, participantCount int) (int, int, int, error) {
+	if payment == nil {
+		return 0, 0, 0, model.ErrPaymentNotFound
+	}
+	if participantCount <= 0 {
+		return 0, 0, 0, model.ErrNoParticipantsInEvent
+	}
+
+	switch payment.Type {
+	case model.PaymentTypePerPerson:
+		return payment.BaseSplit * participantCount, payment.BaseSplit, 0, nil
+	case model.PaymentTypeTotal, "":
+		newBaseSplit := payment.TotalCost / participantCount
+		return payment.TotalCost, newBaseSplit, newBaseSplit - payment.BaseSplit, nil
+	default:
+		return 0, 0, 0, fmt.Errorf("invalid payment type: %s", payment.Type)
+	}
+}
+
+func paymentConfigEditable(records []*model.PaymentRecord, creatorID string) bool {
+	for _, record := range records {
+		isCreator := record.Participant.UserID.Valid && record.Participant.UserID.String == creatorID
+		if isCreator {
+			continue
+		}
+		if record.PaidAmount > 0 || record.Status != model.PaymentRecordStatusPending || len(record.Claims) > 0 {
+			return false
+		}
+	}
+	return true
 }

@@ -54,6 +54,18 @@ func (h *APIHandler) CreatePayment(c echo.Context) error {
 	if err := c.Validate(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
+	switch req.Type {
+	case "", string(model.PaymentTypeTotal):
+		if req.TotalCost <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "total_cost must be greater than 0 for total payment type")
+		}
+	case string(model.PaymentTypePerPerson):
+		if req.PerPersonAmount <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "per_person_amount must be greater than 0 for per_person payment type")
+		}
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "type must be either total or per_person")
+	}
 
 	payment, err := h.paymentUsecase.Create(ctx, eventID, &req)
 	if err != nil {
@@ -84,6 +96,37 @@ func (h *APIHandler) UpdatePayment(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Payment updated", payment))
+}
+
+func (h *APIHandler) UpdatePaymentConfig(c echo.Context) error {
+	ctx := c.Request().Context()
+	requester := c.Get(string(model.ContextKeyUser)).(UserInfo)
+	eventID := c.Param("event_id")
+
+	var req model.UpdatePaymentConfigRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	switch req.Type {
+	case "", string(model.PaymentTypeTotal):
+		if req.TotalCost <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "total_cost must be greater than 0 for total payment type")
+		}
+	case string(model.PaymentTypePerPerson):
+		if req.PerPersonAmount <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "per_person_amount must be greater than 0 for per_person payment type")
+		}
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "type must be either total or per_person")
+	}
+
+	payment, err := h.paymentUsecase.UpdatePaymentConfig(ctx, eventID, requester.ID, &req)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID, "requesterID": requester.ID, "req": utils.Dump(req)}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Payment configuration updated", payment))
 }
 
 func (h *APIHandler) ClaimPayment(c echo.Context) error {

@@ -166,7 +166,12 @@ func (r *userRepo) Create(ctx context.Context, user *model.User) error {
 }
 
 func (r *userRepo) Update(ctx context.Context, user *model.User) error {
-	if err := r.db.WithContext(ctx).Save(user).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.User{}).
+		Where("id = ?", user.ID).
+		Updates(map[string]interface{}{
+			"name":            user.Name,
+			"whatsapp_number": user.WhatsappNumber,
+		}).Error; err != nil {
 		log.WithFields(log.Fields{
 			"ctx":  utils.DumpIncomingContext(ctx),
 			"user": utils.Dump(user),
