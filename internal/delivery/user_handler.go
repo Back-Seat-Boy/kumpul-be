@@ -29,3 +29,29 @@ func (h *APIHandler) UpdateMe(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, successResponse("Profile updated", toUserInfo(res)))
 }
+
+func (h *APIHandler) ListUserCreatedEvents(c echo.Context) error {
+	ctx := c.Request().Context()
+	userID := c.Param("id")
+
+	events, err := h.eventUsecase.ListCreatedByUser(ctx, userID)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "userID": userID}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("User created events retrieved", events))
+}
+
+func (h *APIHandler) ListUserParticipatedEvents(c echo.Context) error {
+	ctx := c.Request().Context()
+	userID := c.Param("id")
+
+	events, err := h.eventUsecase.ListParticipatedByUser(ctx, userID)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "userID": userID}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("User participated events retrieved", events))
+}

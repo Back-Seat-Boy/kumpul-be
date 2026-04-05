@@ -66,6 +66,27 @@ func (r *eventRepo) FindByCreatedBy(ctx context.Context, createdBy string) ([]*m
 	return events, nil
 }
 
+func (r *eventRepo) FindByParticipantUserID(ctx context.Context, userID string) ([]*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"userID":  userID,
+	})
+
+	var events []*model.Event
+	if err := r.db.WithContext(ctx).
+		Model(&model.Event{}).
+		Preload("Creator").
+		Joins("JOIN participants ON participants.event_id = events.id").
+		Where("participants.user_id = ?", userID).
+		Group("events.id").
+		Order("events.created_at desc").
+		Find(&events).Error; err != nil {
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to list participated events: %w", err)
+	}
+	return events, nil
+}
+
 func (r *eventRepo) List(ctx context.Context) ([]*model.Event, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
@@ -86,12 +107,40 @@ func (r *eventRepo) ListPaginated(ctx context.Context, req *model.ListEventsRequ
 	})
 
 	query := r.db.WithContext(ctx).Model(&model.Event{}).Preload("Creator")
+	if req.RequesterUserID != "" {
+		query = query.Where(
+			`(
+				events.visibility = ?
+				OR events.created_by = ?
+				OR EXISTS (
+					SELECT 1
+					FROM participants
+					WHERE participants.event_id = events.id
+						AND participants.user_id = ?
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM event_options eo
+					JOIN votes v ON v.event_option_id = eo.id
+					WHERE eo.event_id = events.id
+						AND v.user_id = ?
+				)
+			)`,
+			model.EventVisibilityPublic,
+			req.RequesterUserID,
+			req.RequesterUserID,
+			req.RequesterUserID,
+		)
+	}
 	if req.Filter.Search != "" {
 		query = query.Where("title ILIKE ?", "%"+req.Filter.Search+"%")
 	}
 
 	if req.Filter.Status != "" {
 		query = query.Where("status = ?", req.Filter.Status)
+	}
+	if req.Filter.Visibility != "" {
+		query = query.Where("visibility = ?", req.Filter.Visibility)
 	}
 
 	var total int64
@@ -333,8 +382,32 @@ func (r *eventRepo) UpdateStatus(ctx context.Context, id string, status model.Ev
 	return nil
 }
 
+func (r *eventRepo) UpdateStatusWithTx(ctx context.Context, tx *gorm.DB, id string, status model.EventStatus) error {
+	if err := tx.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":    utils.DumpIncomingContext(ctx),
+			"id":     id,
+			"status": status,
+		}).Error(err)
+		return fmt.Errorf("failed to update event status: %w", err)
+	}
+	return nil
+}
+
 func (r *eventRepo) UpdateChosenOption(ctx context.Context, id string, optionID string) error {
 	if err := r.db.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Update("chosen_option_id", optionID).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":      utils.DumpIncomingContext(ctx),
+			"id":       id,
+			"optionID": optionID,
+		}).Error(err)
+		return fmt.Errorf("failed to update chosen option: %w", err)
+	}
+	return nil
+}
+
+func (r *eventRepo) UpdateChosenOptionWithTx(ctx context.Context, tx *gorm.DB, id string, optionID string) error {
+	if err := tx.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Update("chosen_option_id", optionID).Error; err != nil {
 		log.WithFields(log.Fields{
 			"ctx":      utils.DumpIncomingContext(ctx),
 			"id":       id,

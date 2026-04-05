@@ -12,38 +12,9 @@ import (
 
 func (h *APIHandler) ListEvents(c echo.Context) error {
 	ctx := c.Request().Context()
-
-	// Parse pagination parameters
-	req := &model.ListEventsRequest{
-		Mode: model.PaginationModePage, // Default to page mode
-	}
-
-	// Parse mode
-	if mode := c.QueryParam("mode"); mode == "cursor" {
-		req.Mode = model.PaginationModeCursor
-	}
-
-	// Parse page
-	if pageStr := c.QueryParam("page"); pageStr != "" {
-		if page, err := strconv.Atoi(pageStr); err == nil {
-			req.Page = page
-		}
-	}
-
-	// Parse limit
-	if limitStr := c.QueryParam("limit"); limitStr != "" {
-		if limit, err := strconv.Atoi(limitStr); err == nil {
-			req.Limit = limit
-		}
-	}
-
-	// Parse cursor
-	req.Cursor = c.QueryParam("cursor")
-
-	// Parse filters
-	req.Filter.Search = c.QueryParam("search")
-	req.Filter.Status = model.EventStatus(c.QueryParam("status"))
-	req.Filter.EventDate = c.QueryParam("event_date")
+	req := parseListEventsRequest(c)
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
+	req.RequesterUserID = user.ID
 
 	response, err := h.eventUsecase.ListForDashboard(ctx, req)
 	if err != nil {
@@ -52,6 +23,20 @@ func (h *APIHandler) ListEvents(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Events list retrieved", response))
+}
+
+func (h *APIHandler) ListPublicEvents(c echo.Context) error {
+	ctx := c.Request().Context()
+	req := parseListEventsRequest(c)
+	req.Filter.Visibility = model.EventVisibilityPublic
+
+	response, err := h.eventUsecase.ListPublic(ctx, req)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx)}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Public events list retrieved", response))
 }
 
 func (h *APIHandler) GetEventByToken(c echo.Context) error {
@@ -126,4 +111,32 @@ func (h *APIHandler) UpdateEventChosenOption(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Event chosen option updated", nil))
+}
+
+func parseListEventsRequest(c echo.Context) *model.ListEventsRequest {
+	req := &model.ListEventsRequest{
+		Mode: model.PaginationModePage,
+	}
+
+	if mode := c.QueryParam("mode"); mode == "cursor" {
+		req.Mode = model.PaginationModeCursor
+	}
+	if pageStr := c.QueryParam("page"); pageStr != "" {
+		if page, err := strconv.Atoi(pageStr); err == nil {
+			req.Page = page
+		}
+	}
+	if limitStr := c.QueryParam("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil {
+			req.Limit = limit
+		}
+	}
+
+	req.Cursor = c.QueryParam("cursor")
+	req.Filter.Search = c.QueryParam("search")
+	req.Filter.Status = model.EventStatus(c.QueryParam("status"))
+	req.Filter.Visibility = model.EventVisibility(c.QueryParam("visibility"))
+	req.Filter.EventDate = c.QueryParam("event_date")
+
+	return req
 }

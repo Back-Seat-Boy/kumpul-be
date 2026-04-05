@@ -37,9 +37,28 @@ func (h *APIHandler) JoinEvent(c echo.Context) error {
 	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
 	eventID := c.Param("event_id")
 
-	if err := h.participantUsecase.Join(ctx, eventID, user.ID); err != nil {
+	if err := h.participantUsecase.Join(ctx, eventID, user.ID, false); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID, "userID": user.ID}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Joined event", nil))
+}
+
+func (h *APIHandler) JoinEventByToken(c echo.Context) error {
+	ctx := c.Request().Context()
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
+	token := c.Param("token")
+
+	event, err := h.eventUsecase.GetByShareToken(ctx, token)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "token": token, "userID": user.ID}).Error()
+		return err
+	}
+
+	if err := h.participantUsecase.Join(ctx, event.ID, user.ID, true); err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": event.ID, "token": token, "userID": user.ID}).Error()
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Joined event", nil))
@@ -101,9 +120,36 @@ func (h *APIHandler) JoinEventAsGuest(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	if err := h.participantUsecase.JoinAsGuest(ctx, user.ID, eventID, &req); err != nil {
+	if err := h.participantUsecase.JoinAsGuest(ctx, user.ID, eventID, &req, false); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID, "userID": user.ID, "guestName": req.GuestName}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Joined event", nil))
+}
+
+func (h *APIHandler) JoinEventAsGuestByToken(c echo.Context) error {
+	ctx := c.Request().Context()
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
+	token := c.Param("token")
+
+	var req model.JoinAsGuestRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	event, err := h.eventUsecase.GetByShareToken(ctx, token)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "token": token, "userID": user.ID, "guestName": req.GuestName}).Error()
+		return err
+	}
+
+	if err := h.participantUsecase.JoinAsGuest(ctx, user.ID, event.ID, &req, true); err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": event.ID, "token": token, "userID": user.ID, "guestName": req.GuestName}).Error()
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Joined event", nil))
