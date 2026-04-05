@@ -375,6 +375,9 @@ func (u *paymentRecordUsecase) ChargeAll(ctx context.Context, paymentID string, 
 	if event.CreatedBy != requesterID {
 		return model.ErrForbidden
 	}
+	if payment.Type == model.PaymentTypeSplitBill {
+		return model.ErrSplitBillChargeAllBlocked
+	}
 
 	records, err := u.recordRepo.FindByPaymentID(ctx, paymentID)
 	if err != nil {
