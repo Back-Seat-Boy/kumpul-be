@@ -17,6 +17,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 	{
 		api.POST("/auth/logout/", h.Logout)
 		api.GET("/users/me/", h.GetMe)
+		api.GET("/users/:id/", h.GetUserProfile)
 		api.PATCH("/users/me/", h.UpdateMe)
 		api.GET("/users/:id/events/created/", h.ListUserCreatedEvents)
 		api.GET("/users/:id/events/participated/", h.ListUserParticipatedEvents)

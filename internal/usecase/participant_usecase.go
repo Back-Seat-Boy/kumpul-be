@@ -528,9 +528,6 @@ func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eve
 	if err := ensureEventNotCancelled(event); err != nil {
 		return nil, err
 	}
-	if event.VotingDeadline != nil && !event.VotingDeadline.After(time.Now()) {
-		return nil, model.ErrEventDeadlinePassed
-	}
 	if event.Status != model.EventStatusOpen && event.Status != model.EventStatusPaymentOpen {
 		return nil, model.ErrEventNotOpenForJoining
 	}

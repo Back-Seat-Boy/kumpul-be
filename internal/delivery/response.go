@@ -24,6 +24,14 @@ type UserInfo struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+type PublicUserProfile struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	EmailVerified bool      `json:"email_verified"`
+	AvatarURL     string    `json:"avatar_url,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type AuthResponse struct {
 	SessionID string   `json:"session_id"`
 	User      UserInfo `json:"user"`
@@ -50,6 +58,16 @@ func toUserInfo(u *model.User) UserInfo {
 		WhatsappNumber: u.WhatsappNumber,
 		AvatarURL:      u.AvatarURL,
 		CreatedAt:      u.CreatedAt,
+	}
+}
+
+func toPublicUserProfile(u *model.User) PublicUserProfile {
+	return PublicUserProfile{
+		ID:            u.ID,
+		Name:          u.Name,
+		EmailVerified: u.EmailVerified,
+		AvatarURL:     u.AvatarURL,
+		CreatedAt:     u.CreatedAt,
 	}
 }
 

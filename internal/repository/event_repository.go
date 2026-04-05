@@ -18,6 +18,36 @@ func NewEventRepository(db *gorm.DB) model.EventRepository {
 	return &eventRepo{db: db}
 }
 
+func applyEventVisibilityForRequester(query *gorm.DB, requesterUserID string) *gorm.DB {
+	if requesterUserID == "" {
+		return query
+	}
+
+	return query.Where(
+		`(
+			events.visibility = ?
+			OR events.created_by = ?
+			OR EXISTS (
+				SELECT 1
+				FROM participants
+				WHERE participants.event_id = events.id
+					AND participants.user_id = ?
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM event_options eo
+				JOIN votes v ON v.event_option_id = eo.id
+				WHERE eo.event_id = events.id
+					AND v.user_id = ?
+			)
+		)`,
+		model.EventVisibilityPublic,
+		requesterUserID,
+		requesterUserID,
+		requesterUserID,
+	)
+}
+
 func (r *eventRepo) FindByID(ctx context.Context, id string) (*model.Event, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
@@ -66,6 +96,28 @@ func (r *eventRepo) FindByCreatedBy(ctx context.Context, createdBy string) ([]*m
 	return events, nil
 }
 
+func (r *eventRepo) FindVisibleCreatedByUser(ctx context.Context, createdBy string, requesterUserID string) ([]*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context":         utils.DumpIncomingContext(ctx),
+		"createdBy":       createdBy,
+		"requesterUserID": requesterUserID,
+	})
+
+	query := r.db.WithContext(ctx).
+		Model(&model.Event{}).
+		Preload("Creator").
+		Where("events.created_by = ?", createdBy).
+		Order("events.created_at desc")
+	query = applyEventVisibilityForRequester(query, requesterUserID)
+
+	var events []*model.Event
+	if err := query.Find(&events).Error; err != nil {
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to list visible created events: %w", err)
+	}
+	return events, nil
+}
+
 func (r *eventRepo) FindByParticipantUserID(ctx context.Context, userID string) ([]*model.Event, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
@@ -83,6 +135,30 @@ func (r *eventRepo) FindByParticipantUserID(ctx context.Context, userID string) 
 		Find(&events).Error; err != nil {
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to list participated events: %w", err)
+	}
+	return events, nil
+}
+
+func (r *eventRepo) FindVisibleParticipatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context":         utils.DumpIncomingContext(ctx),
+		"userID":          userID,
+		"requesterUserID": requesterUserID,
+	})
+
+	query := r.db.WithContext(ctx).
+		Model(&model.Event{}).
+		Preload("Creator").
+		Joins("JOIN participants ON participants.event_id = events.id").
+		Where("participants.user_id = ?", userID).
+		Group("events.id").
+		Order("events.created_at desc")
+	query = applyEventVisibilityForRequester(query, requesterUserID)
+
+	var events []*model.Event
+	if err := query.Find(&events).Error; err != nil {
+		logger.Error(err)
+		return nil, fmt.Errorf("failed to list visible participated events: %w", err)
 	}
 	return events, nil
 }
@@ -107,31 +183,7 @@ func (r *eventRepo) ListPaginated(ctx context.Context, req *model.ListEventsRequ
 	})
 
 	query := r.db.WithContext(ctx).Model(&model.Event{}).Preload("Creator")
-	if req.RequesterUserID != "" {
-		query = query.Where(
-			`(
-				events.visibility = ?
-				OR events.created_by = ?
-				OR EXISTS (
-					SELECT 1
-					FROM participants
-					WHERE participants.event_id = events.id
-						AND participants.user_id = ?
-				)
-				OR EXISTS (
-					SELECT 1
-					FROM event_options eo
-					JOIN votes v ON v.event_option_id = eo.id
-					WHERE eo.event_id = events.id
-						AND v.user_id = ?
-				)
-			)`,
-			model.EventVisibilityPublic,
-			req.RequesterUserID,
-			req.RequesterUserID,
-			req.RequesterUserID,
-		)
-	}
+	query = applyEventVisibilityForRequester(query, req.RequesterUserID)
 	if req.Filter.Search != "" {
 		query = query.Where("title ILIKE ?", "%"+req.Filter.Search+"%")
 	}
