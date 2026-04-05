@@ -322,6 +322,9 @@ func (u *paymentRecordUsecase) AdjustPayment(ctx context.Context, paymentID stri
 	if event.CreatedBy != requesterID {
 		return model.ErrForbidden
 	}
+	if payment.Type == model.PaymentTypeSplitBill {
+		return model.ErrSplitBillManualAdjustBlocked
+	}
 
 	record, err := u.recordRepo.FindByPaymentIDAndParticipantID(ctx, paymentID, participantID)
 	if err != nil {

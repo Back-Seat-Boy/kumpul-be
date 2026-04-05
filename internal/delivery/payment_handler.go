@@ -27,9 +27,16 @@ func (h *APIHandler) GetPayment(c echo.Context) error {
 		return err
 	}
 
+	splitBill, err := h.paymentUsecase.GetSplitBillDetails(ctx, payment.ID)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "paymentID": payment.ID}).Error()
+		return err
+	}
+
 	return c.JSON(http.StatusOK, successResponse("Payment retrieved", map[string]interface{}{
-		"payment": payment,
-		"records": recordsWithSummary.Records,
+		"payment":    payment,
+		"records":    recordsWithSummary.Records,
+		"split_bill": splitBill,
 		"summary": map[string]interface{}{
 			"num_participants":     recordsWithSummary.NumParticipants,
 			"num_confirmed":        recordsWithSummary.NumConfirmed,
@@ -63,8 +70,12 @@ func (h *APIHandler) CreatePayment(c echo.Context) error {
 		if req.PerPersonAmount <= 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "per_person_amount must be greater than 0 for per_person payment type")
 		}
+	case string(model.PaymentTypeSplitBill):
+		if req.TaxAmount < 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "tax_amount must be greater than or equal to 0")
+		}
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "type must be either total or per_person")
+		return echo.NewHTTPError(http.StatusBadRequest, "type must be either total, per_person, or split_bill")
 	}
 
 	payment, err := h.paymentUsecase.Create(ctx, eventID, &req)
@@ -116,8 +127,12 @@ func (h *APIHandler) UpdatePaymentConfig(c echo.Context) error {
 		if req.PerPersonAmount <= 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "per_person_amount must be greater than 0 for per_person payment type")
 		}
+	case string(model.PaymentTypeSplitBill):
+		if req.TaxAmount < 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "tax_amount must be greater than or equal to 0")
+		}
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "type must be either total or per_person")
+		return echo.NewHTTPError(http.StatusBadRequest, "type must be either total, per_person, or split_bill")
 	}
 
 	payment, err := h.paymentUsecase.UpdatePaymentConfig(ctx, eventID, requester.ID, &req)

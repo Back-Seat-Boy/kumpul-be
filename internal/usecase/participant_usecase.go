@@ -15,15 +15,17 @@ type participantUsecase struct {
 	participantRepo   model.ParticipantRepository
 	paymentRepo       model.PaymentRepository
 	paymentRecordRepo model.PaymentRecordRepository
+	splitBillRepo     model.SplitBillRepository
 	eventRepo         model.EventRepository
 	gormTransactioner model.GormTransactioner
 }
 
-func NewParticipantUsecase(participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, eventRepo model.EventRepository, gormTransactioner model.GormTransactioner) model.ParticipantUsecase {
+func NewParticipantUsecase(participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, splitBillRepo model.SplitBillRepository, eventRepo model.EventRepository, gormTransactioner model.GormTransactioner) model.ParticipantUsecase {
 	return &participantUsecase{
 		participantRepo:   participantRepo,
 		paymentRepo:       paymentRepo,
 		paymentRecordRepo: paymentRecordRepo,
+		splitBillRepo:     splitBillRepo,
 		eventRepo:         eventRepo,
 		gormTransactioner: gormTransactioner,
 	}
@@ -101,7 +103,7 @@ func (u *participantUsecase) Leave(ctx context.Context, eventID string, userID s
 	// Handle payment record deletion before removing participant
 	if err := u.HandlePaymentOnLeave(ctx, eventID, participant.ID); err != nil {
 		logger.Error(err)
-		// Don't fail the leave if payment handling fails, just log it
+		return err
 	}
 
 	if err := u.participantRepo.Delete(ctx, participant.ID); err != nil {
@@ -144,7 +146,7 @@ func (u *participantUsecase) RemoveParticipant(ctx context.Context, eventID stri
 	// Handle payment record deletion before removing participant
 	if err := u.HandlePaymentOnLeave(ctx, eventID, participant.ID); err != nil {
 		logger.Error(err)
-		// Don't fail if payment handling fails, just log it
+		return nil, err
 	}
 
 	if err := u.participantRepo.Delete(ctx, participant.ID); err != nil {
@@ -198,6 +200,9 @@ func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID st
 		Amount:        payment.BaseSplit,
 		Status:        model.PaymentRecordStatusPending,
 	}
+	if payment.Type == model.PaymentTypeSplitBill {
+		record.Amount = 0
+	}
 
 	// Creator's payment record is auto-confirmed (they hold the money)
 	if participant.UserID.Valid && participant.UserID.String == event.CreatedBy {
@@ -229,7 +234,7 @@ func (u *participantUsecase) HandlePaymentOnJoin(ctx context.Context, eventID st
 			u.gormTransactioner.Rollback(tx)
 			return err
 		}
-		if err := u.paymentRepo.UpdateTotalsWithTx(ctx, tx, payment.ID, newTotalCost, newBaseSplit); err != nil {
+		if err := u.paymentRepo.UpdateTotalsWithTx(ctx, tx, payment.ID, newTotalCost, newBaseSplit, payment.TaxAmount); err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
@@ -270,6 +275,18 @@ func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID s
 	}
 
 	tx := u.gormTransactioner.Begin(ctx)
+	if payment.Type == model.PaymentTypeSplitBill {
+		hasAssignments, err := u.splitBillRepo.HasAssignmentsForParticipant(ctx, payment.ID, participantID)
+		if err != nil {
+			logger.Error(err)
+			u.gormTransactioner.Rollback(tx)
+			return err
+		}
+		if hasAssignments {
+			u.gormTransactioner.Rollback(tx)
+			return model.ErrSplitBillParticipantAssigned
+		}
+	}
 	// Delete payment record for leaving participant
 	if err := u.paymentRecordRepo.DeleteByPaymentIDAndParticipantIDWithTx(ctx, tx, payment.ID, participantID); err != nil {
 		logger.Error(err)
@@ -295,7 +312,7 @@ func (u *participantUsecase) HandlePaymentOnLeave(ctx context.Context, eventID s
 			u.gormTransactioner.Rollback(tx)
 			return err
 		}
-		if err := u.paymentRepo.UpdateTotalsWithTx(ctx, tx, payment.ID, newTotalCost, newBaseSplit); err != nil {
+		if err := u.paymentRepo.UpdateTotalsWithTx(ctx, tx, payment.ID, newTotalCost, newBaseSplit, payment.TaxAmount); err != nil {
 			logger.Error(err)
 			u.gormTransactioner.Rollback(tx)
 			return err
@@ -351,6 +368,15 @@ func (u *participantUsecase) validateParticipantRemoval(ctx context.Context, eve
 	}
 	if err == model.ErrPaymentNotFound {
 		payment = nil
+	}
+	if payment != nil && payment.Type == model.PaymentTypeSplitBill {
+		hasAssignments, err := u.splitBillRepo.HasAssignmentsForParticipant(ctx, payment.ID, participantID)
+		if err != nil {
+			return nil, nil, nil, 0, err
+		}
+		if hasAssignments {
+			return nil, nil, nil, 0, model.ErrSplitBillParticipantAssigned
+		}
 	}
 
 	totalParticipants, err := u.participantRepo.CountByEventID(ctx, eventID)
@@ -411,7 +437,12 @@ func (u *participantUsecase) buildRemoveParticipantResult(ctx context.Context, _
 		numPaidAfter++
 		totalCollected += record.PaidAmount
 
-		diff := record.PaidAmount - newSplitAmount
+		targetAmount := newSplitAmount
+		if payment.Type == model.PaymentTypeSplitBill {
+			targetAmount = record.Amount
+		}
+
+		diff := record.PaidAmount - targetAmount
 		action := ""
 		actionAmount := 0
 
@@ -429,7 +460,7 @@ func (u *participantUsecase) buildRemoveParticipantResult(ctx context.Context, _
 			ParticipantID: record.ParticipantID,
 			DisplayName:   paymentRecordDisplayName(record),
 			PaidAmount:    record.PaidAmount,
-			NewSplit:      newSplitAmount,
+			NewSplit:      targetAmount,
 			Difference:    diff,
 			Action:        action,
 			ActionAmount:  actionAmount,
@@ -439,6 +470,9 @@ func (u *participantUsecase) buildRemoveParticipantResult(ctx context.Context, _
 	result.NumPaidParticipants = numPaidAfter
 	result.TotalCollected = totalCollected
 	result.TotalShouldCollect = newTotalCost
+	if payment.Type == model.PaymentTypeSplitBill {
+		result.TotalShouldCollect = payment.TotalCost
+	}
 	result.Difference = result.TotalCollected - result.TotalShouldCollect
 	result.Impacts = impacts
 
