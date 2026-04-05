@@ -18,24 +18,33 @@ const (
 	EventStatusCancelled   EventStatus = "cancelled"
 )
 
+type EventVisibility string
+
+const (
+	EventVisibilityPublic     EventVisibility = "public"
+	EventVisibilityInviteOnly EventVisibility = "invite_only"
+)
+
 type Event struct {
-	ID             string       `json:"id" gorm:"primaryKey;type:uuid"`
-	CreatedBy      string       `json:"created_by" gorm:"type:uuid;not null"`
-	Title          string       `json:"title" gorm:"not null"`
-	Description    string       `json:"description"`
-	Status         EventStatus  `json:"status" gorm:"not null;default:'voting'"`
-	ChosenOptionID *string      `json:"chosen_option_id,omitempty" gorm:"type:uuid"`
-	PlayerCap      *int         `json:"player_cap"`
-	VotingDeadline *time.Time   `json:"voting_deadline"`
-	ShareToken     string       `json:"share_token" gorm:"uniqueIndex;not null"`
-	CreatedAt      time.Time    `json:"created_at"`
-	Creator        User         `json:"creator" gorm:"foreignKey:CreatedBy"`
-	ChosenOption   *EventOption `json:"chosen_option,omitempty" gorm:"foreignKey:ChosenOptionID"`
+	ID             string          `json:"id" gorm:"primaryKey;type:uuid"`
+	CreatedBy      string          `json:"created_by" gorm:"type:uuid;not null"`
+	Title          string          `json:"title" gorm:"not null"`
+	Description    string          `json:"description"`
+	Status         EventStatus     `json:"status" gorm:"not null;default:'voting'"`
+	Visibility     EventVisibility `json:"visibility" gorm:"type:varchar(20);not null;default:'invite_only'"`
+	ChosenOptionID *string         `json:"chosen_option_id,omitempty" gorm:"type:uuid"`
+	PlayerCap      *int            `json:"player_cap"`
+	VotingDeadline *time.Time      `json:"voting_deadline"`
+	ShareToken     string          `json:"share_token" gorm:"uniqueIndex;not null"`
+	CreatedAt      time.Time       `json:"created_at"`
+	Creator        User            `json:"creator" gorm:"foreignKey:CreatedBy"`
+	ChosenOption   *EventOption    `json:"chosen_option,omitempty" gorm:"foreignKey:ChosenOptionID"`
 }
 
 type CreateEventRequest struct {
 	Title                     string                      `json:"title" validate:"required"`
 	Description               string                      `json:"description"`
+	Visibility                EventVisibility             `json:"visibility" validate:"omitempty,oneof=public invite_only"`
 	PlayerCap                 *int                        `json:"player_cap"`
 	VotingDeadline            *time.Time                  `json:"voting_deadline"`
 	CreateEventOptionRequests []*CreateEventOptionRequest `json:"options" validate:"required,dive"`
@@ -82,9 +91,10 @@ type PaymentRecordCounts struct {
 
 // ListEventsFilter holds filter parameters for listing events
 type ListEventsFilter struct {
-	Search    string      // Search in title
-	Status    EventStatus // Filter by status
-	EventDate string      // Filter by event date (YYYY-MM-DD)
+	Search     string          // Search in title
+	Status     EventStatus     // Filter by status
+	Visibility EventVisibility // Filter by visibility
+	EventDate  string          // Filter by event date (YYYY-MM-DD)
 }
 
 // PaginationMode defines the pagination type
@@ -97,11 +107,12 @@ const (
 
 // ListEventsRequest holds pagination and filter parameters
 type ListEventsRequest struct {
-	Mode   PaginationMode
-	Page   int    // For page-based pagination
-	Limit  int    // Page size or cursor limit
-	Cursor string // For cursor-based pagination (last event ID)
-	Filter ListEventsFilter
+	Mode            PaginationMode
+	Page            int    // For page-based pagination
+	Limit           int    // Page size or cursor limit
+	Cursor          string // For cursor-based pagination (last event ID)
+	RequesterUserID string
+	Filter          ListEventsFilter
 }
 
 // ListEventsResponse is the paginated response
@@ -116,6 +127,7 @@ type EventRepository interface {
 	FindByID(ctx context.Context, id string) (*Event, error)
 	FindByShareToken(ctx context.Context, token string) (*Event, error)
 	FindByCreatedBy(ctx context.Context, createdBy string) ([]*Event, error)
+	FindByParticipantUserID(ctx context.Context, userID string) ([]*Event, error)
 	List(ctx context.Context) ([]*Event, error)
 	ListPaginated(ctx context.Context, req *ListEventsRequest) ([]*Event, int64, error)
 	BulkFetchVoteCounts(ctx context.Context, eventIDs []string) (map[string]int64, error)
@@ -126,7 +138,9 @@ type EventRepository interface {
 	CreateWithTx(ctx context.Context, tx *gorm.DB, event *Event) error
 	Update(ctx context.Context, event *Event) error
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
+	UpdateStatusWithTx(ctx context.Context, tx *gorm.DB, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error
+	UpdateChosenOptionWithTx(ctx context.Context, tx *gorm.DB, id string, optionID string) error
 	Delete(ctx context.Context, id string) error
 }
 
@@ -135,6 +149,9 @@ type EventUsecase interface {
 	GetByShareToken(ctx context.Context, token string) (*Event, error)
 	List(ctx context.Context) ([]*Event, error)
 	ListForDashboard(ctx context.Context, req *ListEventsRequest) (*ListEventsResponse, error)
+	ListPublic(ctx context.Context, req *ListEventsRequest) (*ListEventsResponse, error)
+	ListCreatedByUser(ctx context.Context, userID string) ([]*EventSummary, error)
+	ListParticipatedByUser(ctx context.Context, userID string) ([]*EventSummary, error)
 	Create(ctx context.Context, userID string, req *CreateEventRequest) (*Event, error)
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error

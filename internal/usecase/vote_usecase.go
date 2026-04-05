@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"time"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/google/uuid"
@@ -44,6 +45,9 @@ func (u *voteUsecase) CastVote(ctx context.Context, userID string, req *model.Ca
 	}
 	if event.Status != model.EventStatusVoting {
 		return model.ErrEventNotInVotingPhase
+	}
+	if event.VotingDeadline != nil && !event.VotingDeadline.After(time.Now()) {
+		return model.ErrEventDeadlinePassed
 	}
 
 	_, err = u.voteRepo.FindByEventOptionIDAndUserID(ctx, req.EventOptionID, userID)
@@ -90,6 +94,9 @@ func (u *voteUsecase) RemoveVote(ctx context.Context, eventOptionID string, user
 	}
 	if event.Status != model.EventStatusVoting {
 		return model.ErrEventNotInVotingPhase
+	}
+	if event.VotingDeadline != nil && !event.VotingDeadline.After(time.Now()) {
+		return model.ErrEventDeadlinePassed
 	}
 
 	vote, err := u.voteRepo.FindByEventOptionIDAndUserID(ctx, eventOptionID, userID)

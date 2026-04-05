@@ -18,6 +18,8 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.POST("/auth/logout/", h.Logout)
 		api.GET("/users/me/", h.GetMe)
 		api.PATCH("/users/me/", h.UpdateMe)
+		api.GET("/users/:id/events/created/", h.ListUserCreatedEvents)
+		api.GET("/users/:id/events/participated/", h.ListUserParticipatedEvents)
 
 		api.GET("/venues/", h.ListVenues)
 		api.POST("/venues/", h.CreateVenue)
@@ -39,10 +41,12 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 
 		api.GET("/events/:event_id/participants/", h.ListParticipants)
 		api.POST("/events/:event_id/participants/", h.JoinEvent)
+		api.POST("/events/share/:token/participants/", h.JoinEventByToken)
 		api.DELETE("/events/:event_id/participants/", h.LeaveEvent)
 		api.GET("/events/:event_id/participants/:participant_id/removal-impact/", h.PreviewRemoveParticipant)
 		api.DELETE("/events/:event_id/participants/:participant_id/", h.RemoveParticipant)
 		api.POST("/events/:event_id/participants/guest/", h.JoinEventAsGuest)
+		api.POST("/events/share/:token/participants/guest/", h.JoinEventAsGuestByToken)
 
 		api.GET("/events/:event_id/payment/", h.GetPayment)
 		api.POST("/events/:event_id/payment/", h.CreatePayment)
@@ -59,6 +63,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.POST("/uploads/image/", h.UploadImage)
 	}
 
+	e.GET("/events/public/", h.ListPublicEvents)
 	e.GET("/events/:token/", h.GetEventByToken)
 	e.GET("/events/:token/options/", h.ListEventOptions)
 	e.GET("/events/:token/options/with-voters/", h.ListEventOptionsWithVoters)

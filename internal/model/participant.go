@@ -78,8 +78,8 @@ type JoinAsGuestRequest struct {
 
 type ParticipantUsecase interface {
 	ListByEvent(ctx context.Context, eventID string) ([]*Participant, error)
-	Join(ctx context.Context, eventID string, userID string) error
-	JoinAsGuest(ctx context.Context, userID, eventID string, req *JoinAsGuestRequest) error
+	Join(ctx context.Context, eventID string, userID string, viaShareLink bool) error
+	JoinAsGuest(ctx context.Context, userID, eventID string, req *JoinAsGuestRequest, viaShareLink bool) error
 	Leave(ctx context.Context, eventID string, userID string) error
 	PreviewRemoveParticipant(ctx context.Context, eventID string, participantID string, requesterUserID string) (*RemoveParticipantResult, error)
 	RemoveParticipant(ctx context.Context, eventID string, participantID string, requesterUserID string) (*RemoveParticipantResult, error)

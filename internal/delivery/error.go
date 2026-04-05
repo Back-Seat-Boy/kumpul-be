@@ -57,9 +57,13 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 	case errors.Is(err, model.ErrForbidden):
 		code = http.StatusForbidden
 		message = "Forbidden"
+	case errors.Is(err, model.ErrInviteOnlyRequiresLink):
+		code = http.StatusForbidden
+		message = err.Error()
 	case errors.Is(err, model.ErrInvalidEmail) || errors.Is(err, model.ErrInvalidGoogleID) ||
 		errors.Is(err, model.ErrNoParticipantsInEvent) || errors.Is(err, model.ErrAlreadyVoted) ||
-		errors.Is(err, model.ErrNotVoted):
+		errors.Is(err, model.ErrNotVoted) || errors.Is(err, model.ErrEventDeadlinePassed) ||
+		errors.Is(err, model.ErrParticipantCapReached):
 		code = http.StatusBadRequest
 		message = err.Error()
 	case errors.Is(err, model.ErrDuplicateEmail) || errors.Is(err, model.ErrDuplicateGoogleID):

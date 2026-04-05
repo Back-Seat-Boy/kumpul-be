@@ -34,6 +34,9 @@ var (
 	ErrAlreadyJoined             = errors.New("already joined")
 	ErrPaymentRecordNotConfirmed = errors.New("payment record not confirmed")
 	ErrPaymentConfigLocked       = errors.New("payment configuration can no longer be changed")
+	ErrInviteOnlyRequiresLink    = errors.New("invite-only events can only be joined through the share link")
+	ErrEventDeadlinePassed       = errors.New("event deadline has passed")
+	ErrParticipantCapReached     = errors.New("participant cap has been reached")
 
 	// Event status errors
 	ErrEventNotOpenForJoining = errors.New("event is not open for joining")

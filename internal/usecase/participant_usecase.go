@@ -33,14 +33,14 @@ func (u *participantUsecase) ListByEvent(ctx context.Context, eventID string) ([
 	return u.participantRepo.FindByEventID(ctx, eventID)
 }
 
-func (u *participantUsecase) Join(ctx context.Context, eventID string, userID string) error {
+func (u *participantUsecase) Join(ctx context.Context, eventID string, userID string, viaShareLink bool) error {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
 		"eventID": eventID,
 		"userID":  userID,
 	})
 
-	_, err := u.checkEventStatusForJoining(ctx, eventID)
+	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -469,7 +469,7 @@ func buildRemovedParticipantPayment(record *model.PaymentRecord) *model.RemovedP
 	}
 }
 
-func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID string, req *model.JoinAsGuestRequest) error {
+func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID string, req *model.JoinAsGuestRequest, viaShareLink bool) error {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
 		"userID":  userID,
@@ -478,7 +478,7 @@ func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID st
 	})
 
 	// Check event status - can join when status is "open" or "payment_open"
-	_, err := u.checkEventStatusForJoining(ctx, eventID)
+	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -511,7 +511,7 @@ func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID st
 	return nil
 }
 
-func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eventID string) (*model.Event, error) {
+func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eventID string, viaShareLink bool) (*model.Event, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
 		"eventID": eventID,
@@ -528,8 +528,24 @@ func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eve
 	if err := ensureEventNotCancelled(event); err != nil {
 		return nil, err
 	}
+	if event.VotingDeadline != nil && !event.VotingDeadline.After(time.Now()) {
+		return nil, model.ErrEventDeadlinePassed
+	}
 	if event.Status != model.EventStatusOpen && event.Status != model.EventStatusPaymentOpen {
 		return nil, model.ErrEventNotOpenForJoining
+	}
+	if event.Visibility == model.EventVisibilityInviteOnly && !viaShareLink {
+		return nil, model.ErrInviteOnlyRequiresLink
+	}
+	if event.PlayerCap != nil {
+		participantCount, err := u.participantRepo.CountByEventID(ctx, eventID)
+		if err != nil {
+			logger.Error(err)
+			return nil, err
+		}
+		if participantCount >= int64(*event.PlayerCap) {
+			return nil, model.ErrParticipantCapReached
+		}
 	}
 	return event, nil
 }
