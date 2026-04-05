@@ -40,16 +40,16 @@ func (u *eventUsecase) List(ctx context.Context) ([]*model.Event, error) {
 	return u.eventRepo.List(ctx)
 }
 
-func (u *eventUsecase) ListCreatedByUser(ctx context.Context, userID string) ([]*model.EventSummary, error) {
-	events, err := u.eventRepo.FindByCreatedBy(ctx, userID)
+func (u *eventUsecase) ListCreatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*model.EventSummary, error) {
+	events, err := u.eventRepo.FindVisibleCreatedByUser(ctx, userID, requesterUserID)
 	if err != nil {
 		return nil, err
 	}
 	return u.buildEventSummaries(ctx, events)
 }
 
-func (u *eventUsecase) ListParticipatedByUser(ctx context.Context, userID string) ([]*model.EventSummary, error) {
-	events, err := u.eventRepo.FindByParticipantUserID(ctx, userID)
+func (u *eventUsecase) ListParticipatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*model.EventSummary, error) {
+	events, err := u.eventRepo.FindVisibleParticipatedByUser(ctx, userID, requesterUserID)
 	if err != nil {
 		return nil, err
 	}

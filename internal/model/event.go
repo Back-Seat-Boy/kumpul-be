@@ -128,6 +128,8 @@ type EventRepository interface {
 	FindByShareToken(ctx context.Context, token string) (*Event, error)
 	FindByCreatedBy(ctx context.Context, createdBy string) ([]*Event, error)
 	FindByParticipantUserID(ctx context.Context, userID string) ([]*Event, error)
+	FindVisibleCreatedByUser(ctx context.Context, createdBy string, requesterUserID string) ([]*Event, error)
+	FindVisibleParticipatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*Event, error)
 	List(ctx context.Context) ([]*Event, error)
 	ListPaginated(ctx context.Context, req *ListEventsRequest) ([]*Event, int64, error)
 	BulkFetchVoteCounts(ctx context.Context, eventIDs []string) (map[string]int64, error)
@@ -150,8 +152,8 @@ type EventUsecase interface {
 	List(ctx context.Context) ([]*Event, error)
 	ListForDashboard(ctx context.Context, req *ListEventsRequest) (*ListEventsResponse, error)
 	ListPublic(ctx context.Context, req *ListEventsRequest) (*ListEventsResponse, error)
-	ListCreatedByUser(ctx context.Context, userID string) ([]*EventSummary, error)
-	ListParticipatedByUser(ctx context.Context, userID string) ([]*EventSummary, error)
+	ListCreatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*EventSummary, error)
+	ListParticipatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*EventSummary, error)
 	Create(ctx context.Context, userID string, req *CreateEventRequest) (*Event, error)
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error

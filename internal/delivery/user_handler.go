@@ -9,6 +9,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func (h *APIHandler) GetUserProfile(c echo.Context) error {
+	ctx := c.Request().Context()
+	userID := c.Param("id")
+
+	user, err := h.userUsecase.GetByID(ctx, userID)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "userID": userID}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("User profile retrieved", toPublicUserProfile(user)))
+}
+
 func (h *APIHandler) UpdateMe(c echo.Context) error {
 	ctx := c.Request().Context()
 	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
@@ -32,9 +45,10 @@ func (h *APIHandler) UpdateMe(c echo.Context) error {
 
 func (h *APIHandler) ListUserCreatedEvents(c echo.Context) error {
 	ctx := c.Request().Context()
+	requester := c.Get(string(model.ContextKeyUser)).(UserInfo)
 	userID := c.Param("id")
 
-	events, err := h.eventUsecase.ListCreatedByUser(ctx, userID)
+	events, err := h.eventUsecase.ListCreatedByUser(ctx, userID, requester.ID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "userID": userID}).Error()
 		return err
@@ -45,9 +59,10 @@ func (h *APIHandler) ListUserCreatedEvents(c echo.Context) error {
 
 func (h *APIHandler) ListUserParticipatedEvents(c echo.Context) error {
 	ctx := c.Request().Context()
+	requester := c.Get(string(model.ContextKeyUser)).(UserInfo)
 	userID := c.Param("id")
 
-	events, err := h.eventUsecase.ListParticipatedByUser(ctx, userID)
+	events, err := h.eventUsecase.ListParticipatedByUser(ctx, userID, requester.ID)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "userID": userID}).Error()
 		return err
