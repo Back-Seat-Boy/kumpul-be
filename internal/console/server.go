@@ -73,6 +73,7 @@ func run(_ *cobra.Command, _ []string) {
 	paymentRepo := repository.NewPaymentRepository(db)
 	paymentRecordRepo := repository.NewPaymentRecordRepository(db)
 	paymentClaimRepo := repository.NewPaymentClaimRepository(db)
+	splitBillRepo := repository.NewSplitBillRepository(db)
 	gormTransactioner := repository.NewGormTransactioner(db)
 
 	sessionUC := usecase.NewSessionUsecase(sessionRepo)
@@ -81,9 +82,9 @@ func run(_ *cobra.Command, _ []string) {
 	eventUC := usecase.NewEventUsecase(eventRepo, gormTransactioner, eventOptionRepo, participantRepo, paymentRepo, paymentRecordRepo, venueRepo)
 	eventOptionUC := usecase.NewEventOptionUsecase(eventOptionRepo)
 	voteUC := usecase.NewVoteUsecase(voteRepo, eventRepo, eventOptionRepo)
-	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, eventRepo, gormTransactioner)
+	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, splitBillRepo, eventRepo, gormTransactioner)
 	paymentRecordUC := usecase.NewPaymentRecordUsecase(paymentRecordRepo, paymentClaimRepo, paymentRepo, eventRepo, participantRepo)
-	paymentUC := usecase.NewPaymentUsecase(paymentRepo, paymentRecordRepo, participantRepo, eventRepo, paymentRecordUC, gormTransactioner)
+	paymentUC := usecase.NewPaymentUsecase(paymentRepo, paymentRecordRepo, splitBillRepo, participantRepo, eventRepo, paymentRecordUC, gormTransactioner)
 	uploadUC := usecase.NewUploadUsecase(cld)
 
 	authCfg := model.AuthConfig{

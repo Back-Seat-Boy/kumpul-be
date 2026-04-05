@@ -12,6 +12,7 @@ type PaymentType string
 const (
 	PaymentTypeTotal     PaymentType = "total"
 	PaymentTypePerPerson PaymentType = "per_person"
+	PaymentTypeSplitBill PaymentType = "split_bill"
 )
 
 type Payment struct {
@@ -19,16 +20,19 @@ type Payment struct {
 	EventID     string      `json:"event_id" gorm:"type:uuid;uniqueIndex;not null"`
 	TotalCost   int         `json:"total_cost" gorm:"not null"`
 	BaseSplit   int         `json:"base_split" gorm:"column:base_split;not null"`
+	TaxAmount   int         `json:"tax_amount" gorm:"not null;default:0"`
 	Type        PaymentType `json:"type" gorm:"type:varchar(20);not null;default:'total'"`
 	PaymentInfo string      `json:"payment_info" gorm:"not null"`
 	CreatedAt   time.Time   `json:"created_at"`
 }
 
 type CreatePaymentRequest struct {
-	Type            string `json:"type"`
-	TotalCost       int    `json:"total_cost"`
-	PerPersonAmount int    `json:"per_person_amount"`
-	PaymentInfo     string `json:"payment_info" validate:"required"`
+	Type            string               `json:"type"`
+	TotalCost       int                  `json:"total_cost"`
+	PerPersonAmount int                  `json:"per_person_amount"`
+	TaxAmount       int                  `json:"tax_amount"`
+	SplitBillItems  []SplitBillItemInput `json:"split_bill_items"`
+	PaymentInfo     string               `json:"payment_info" validate:"required"`
 }
 
 type UpdatePaymentRequest struct {
@@ -36,9 +40,11 @@ type UpdatePaymentRequest struct {
 }
 
 type UpdatePaymentConfigRequest struct {
-	Type            string `json:"type"`
-	TotalCost       int    `json:"total_cost"`
-	PerPersonAmount int    `json:"per_person_amount"`
+	Type            string               `json:"type"`
+	TotalCost       int                  `json:"total_cost"`
+	PerPersonAmount int                  `json:"per_person_amount"`
+	TaxAmount       int                  `json:"tax_amount"`
+	SplitBillItems  []SplitBillItemInput `json:"split_bill_items"`
 }
 
 type PaymentRepository interface {
@@ -47,14 +53,15 @@ type PaymentRepository interface {
 	Create(ctx context.Context, payment *Payment) error
 	UpdateBaseSplit(ctx context.Context, id string, baseSplit int) error
 	UpdateBaseSplitWithTx(ctx context.Context, tx *gorm.DB, id string, baseSplit int) error
-	UpdateTotals(ctx context.Context, id string, totalCost, baseSplit int) error
-	UpdateTotalsWithTx(ctx context.Context, tx *gorm.DB, id string, totalCost, baseSplit int) error
-	UpdateConfigWithTx(ctx context.Context, tx *gorm.DB, id string, paymentType PaymentType, totalCost, baseSplit int) error
+	UpdateTotals(ctx context.Context, id string, totalCost, baseSplit, taxAmount int) error
+	UpdateTotalsWithTx(ctx context.Context, tx *gorm.DB, id string, totalCost, baseSplit, taxAmount int) error
+	UpdateConfigWithTx(ctx context.Context, tx *gorm.DB, id string, paymentType PaymentType, totalCost, baseSplit, taxAmount int) error
 	UpdatePaymentInfo(ctx context.Context, id string, paymentInfo string) error
 }
 
 type PaymentUsecase interface {
 	GetByEventID(ctx context.Context, eventID string) (*Payment, error)
+	GetSplitBillDetails(ctx context.Context, paymentID string) (*SplitBillDetails, error)
 	Create(ctx context.Context, eventID string, req *CreatePaymentRequest) (*Payment, error)
 	RecalculateSplitAmount(ctx context.Context, eventID string) error
 	UpdatePaymentInfo(ctx context.Context, eventID string, requesterID string, req *UpdatePaymentRequest) (*Payment, error)
