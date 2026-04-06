@@ -562,7 +562,7 @@ func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eve
 	if err := ensureEventNotCancelled(event); err != nil {
 		return nil, err
 	}
-	if event.Status != model.EventStatusOpen && event.Status != model.EventStatusPaymentOpen {
+	if event.Status != model.EventStatusConfirmed && event.Status != model.EventStatusOpen && event.Status != model.EventStatusPaymentOpen {
 		return nil, model.ErrEventNotOpenForJoining
 	}
 	if event.Visibility == model.EventVisibilityInviteOnly && !viaShareLink {
