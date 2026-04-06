@@ -15,17 +15,27 @@ import (
 )
 
 type eventUsecase struct {
-	eventRepo         model.EventRepository
-	gormTransactioner model.GormTransactioner
-	eventOptionRepo   model.EventOptionRepository
-	participantRepo   model.ParticipantRepository
-	paymentRepo       model.PaymentRepository
-	paymentRecordRepo model.PaymentRecordRepository
-	venueRepo         model.VenueRepository
+	eventRepo                  model.EventRepository
+	gormTransactioner          model.GormTransactioner
+	eventOptionRepo            model.EventOptionRepository
+	eventScheduleChangeLogRepo model.EventScheduleChangeLogRepository
+	participantRepo            model.ParticipantRepository
+	paymentRepo                model.PaymentRepository
+	paymentRecordRepo          model.PaymentRecordRepository
+	venueRepo                  model.VenueRepository
 }
 
-func NewEventUsecase(eventRepo model.EventRepository, gormTransactioner model.GormTransactioner, eventOptionRepo model.EventOptionRepository, participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, venueRepo model.VenueRepository) model.EventUsecase {
-	return &eventUsecase{eventRepo: eventRepo, gormTransactioner: gormTransactioner, eventOptionRepo: eventOptionRepo, participantRepo: participantRepo, paymentRepo: paymentRepo, paymentRecordRepo: paymentRecordRepo, venueRepo: venueRepo}
+func NewEventUsecase(eventRepo model.EventRepository, gormTransactioner model.GormTransactioner, eventOptionRepo model.EventOptionRepository, eventScheduleChangeLogRepo model.EventScheduleChangeLogRepository, participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, venueRepo model.VenueRepository) model.EventUsecase {
+	return &eventUsecase{
+		eventRepo:                  eventRepo,
+		gormTransactioner:          gormTransactioner,
+		eventOptionRepo:            eventOptionRepo,
+		eventScheduleChangeLogRepo: eventScheduleChangeLogRepo,
+		participantRepo:            participantRepo,
+		paymentRepo:                paymentRepo,
+		paymentRecordRepo:          paymentRecordRepo,
+		venueRepo:                  venueRepo,
+	}
 }
 
 func (u *eventUsecase) GetByID(ctx context.Context, id string) (*model.Event, error) {
@@ -248,17 +258,36 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 	if visibility == "" {
 		visibility = model.EventVisibilityInviteOnly
 	}
+	if len(req.CreateEventOptionRequests) == 0 {
+		return nil, model.ErrEventOptionNotFound
+	}
+	if req.SkipVoting && len(req.CreateEventOptionRequests) != 1 {
+		return nil, model.ErrSkipVotingRequiresOneOption
+	}
+
+	initialStatus := model.EventStatusVoting
+	votingDeadline := req.VotingDeadline
+	var chosenOptionID *string
+	if req.SkipVoting {
+		initialStatus = model.EventStatusConfirmed
+		votingDeadline = nil
+		firstOptionID := uuid.New().String()
+		chosenOptionID = &firstOptionID
+		req.CreateEventOptionRequests = []*model.CreateEventOptionRequest{
+			req.CreateEventOptionRequests[0],
+		}
+	}
 
 	event := &model.Event{
 		ID:             uuid.New().String(),
 		CreatedBy:      userID,
 		Title:          req.Title,
 		Description:    req.Description,
-		Status:         model.EventStatusVoting,
+		Status:         initialStatus,
 		Visibility:     visibility,
 		ShareToken:     generateShareToken(),
 		PlayerCap:      req.PlayerCap,
-		VotingDeadline: req.VotingDeadline,
+		VotingDeadline: votingDeadline,
 	}
 
 	tx := u.gormTransactioner.Begin(ctx)
@@ -270,8 +299,12 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 	if len(req.CreateEventOptionRequests) > 0 {
 		options := make([]*model.EventOption, len(req.CreateEventOptionRequests))
 		for i := range req.CreateEventOptionRequests {
+			optionID := uuid.New().String()
+			if req.SkipVoting && i == 0 {
+				optionID = *chosenOptionID
+			}
 			options[i] = &model.EventOption{
-				ID:        uuid.New().String(),
+				ID:        optionID,
 				EventID:   event.ID,
 				VenueID:   req.CreateEventOptionRequests[i].VenueID,
 				Date:      req.CreateEventOptionRequests[i].Date,
@@ -283,6 +316,14 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 			logger.Error(err)
 			tx.Rollback()
 			return nil, err
+		}
+		if req.SkipVoting && chosenOptionID != nil {
+			if err := u.eventRepo.UpdateChosenOptionWithTx(ctx, tx, event.ID, *chosenOptionID); err != nil {
+				logger.Error(err)
+				tx.Rollback()
+				return nil, err
+			}
+			event.ChosenOptionID = chosenOptionID
 		}
 	}
 
@@ -402,6 +443,89 @@ func (u *eventUsecase) UpdateChosenOption(ctx context.Context, id string, option
 	}
 
 	return nil
+}
+
+func (u *eventUsecase) UpdateSchedule(ctx context.Context, id string, userID string, req *model.UpdateEventScheduleRequest) error {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"id":      id,
+		"userID":  userID,
+		"req":     utils.Dump(req),
+	})
+
+	event, err := u.eventRepo.FindByID(ctx, id)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return err
+	}
+	if event.CreatedBy != userID {
+		return model.ErrForbidden
+	}
+	if event.Status != model.EventStatusConfirmed {
+		return model.ErrEventScheduleEditNotAllowed
+	}
+	if event.ChosenOptionID == nil || *event.ChosenOptionID == "" {
+		return model.ErrEventOptionNotFound
+	}
+
+	currentOption, err := u.eventOptionRepo.FindByID(ctx, *event.ChosenOptionID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	if _, err := u.venueRepo.FindByID(ctx, req.VenueID); err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	tx := u.gormTransactioner.Begin(ctx)
+	if err := u.eventOptionRepo.UpdateScheduleWithTx(ctx, tx, currentOption.ID, req.VenueID, req.Date, req.StartTime, req.EndTime); err != nil {
+		logger.Error(err)
+		u.gormTransactioner.Rollback(tx)
+		return err
+	}
+
+	changeLog := &model.EventScheduleChangeLog{
+		ID:           uuid.New().String(),
+		EventID:      event.ID,
+		EditedBy:     userID,
+		Note:         req.Note,
+		OldVenueID:   currentOption.VenueID,
+		OldDate:      currentOption.Date,
+		OldStartTime: currentOption.StartTime,
+		OldEndTime:   currentOption.EndTime,
+		NewVenueID:   req.VenueID,
+		NewDate:      req.Date,
+		NewStartTime: req.StartTime,
+		NewEndTime:   req.EndTime,
+	}
+	if err := u.eventScheduleChangeLogRepo.CreateWithTx(ctx, tx, changeLog); err != nil {
+		logger.Error(err)
+		u.gormTransactioner.Rollback(tx)
+		return err
+	}
+
+	if err := u.gormTransactioner.Commit(tx); err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	return nil
+}
+
+func (u *eventUsecase) ListScheduleChangeLogs(ctx context.Context, eventID string, userID string) ([]*model.EventScheduleChangeLog, error) {
+	event, err := u.eventRepo.FindByID(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+	if event.CreatedBy != userID {
+		return nil, model.ErrForbidden
+	}
+	return u.eventScheduleChangeLogRepo.FindByEventID(ctx, eventID)
 }
 
 func (u *eventUsecase) Delete(ctx context.Context, id string) error {

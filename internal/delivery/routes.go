@@ -31,10 +31,14 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.POST("/events/", h.CreateEvent)
 		api.PATCH("/events/:id/status/", h.UpdateEventStatus)
 		api.PATCH("/events/:id/chosen-option/", h.UpdateEventChosenOption)
+		api.PATCH("/events/:id/schedule/", h.UpdateEventSchedule)
+		api.GET("/events/:id/schedule/history/", h.ListEventScheduleChangeLogs)
 
 		api.GET("/events/:event_id/options/", h.ListEventOptions)
 		api.GET("/events/:event_id/options/with-voters/", h.ListEventOptionsWithVoters)
+		api.GET("/events/:event_id/options/history/", h.ListEventOptionChangeLogs)
 		api.POST("/events/:event_id/options/", h.CreateEventOption)
+		api.PATCH("/events/:event_id/options/:id/", h.UpdateEventOption)
 		api.DELETE("/events/:event_id/options/:id/", h.DeleteEventOption)
 
 		api.POST("/events/:event_id/votes/", h.CastVote)

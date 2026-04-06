@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/kumparan/go-utils"
@@ -136,6 +137,44 @@ func (r *eventOptionRepo) BulkCreateWithTx(ctx context.Context, tx *gorm.DB, opt
 			"option": utils.Dump(options),
 		}).Error(err)
 		return fmt.Errorf("failed to create event options: %w", err)
+	}
+	return nil
+}
+
+func (r *eventOptionRepo) UpdateScheduleWithTx(ctx context.Context, tx *gorm.DB, optionID string, venueID string, date time.Time, startTime string, endTime string) error {
+	if err := tx.WithContext(ctx).
+		Model(&model.EventOption{}).
+		Where("id = ?", optionID).
+		Updates(map[string]interface{}{
+			"venue_id":   venueID,
+			"date":       date,
+			"start_time": startTime,
+			"end_time":   endTime,
+		}).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":      utils.DumpIncomingContext(ctx),
+			"optionID": optionID,
+		}).Error(err)
+		return fmt.Errorf("failed to update event option schedule: %w", err)
+	}
+	return nil
+}
+
+func (r *eventOptionRepo) UpdateWithTx(ctx context.Context, tx *gorm.DB, optionID string, venueID string, date time.Time, startTime string, endTime string) error {
+	if err := tx.WithContext(ctx).
+		Model(&model.EventOption{}).
+		Where("id = ?", optionID).
+		Updates(map[string]interface{}{
+			"venue_id":   venueID,
+			"date":       date,
+			"start_time": startTime,
+			"end_time":   endTime,
+		}).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":      utils.DumpIncomingContext(ctx),
+			"optionID": optionID,
+		}).Error(err)
+		return fmt.Errorf("failed to update event option: %w", err)
 	}
 	return nil
 }

@@ -46,6 +46,7 @@ type CreateEventRequest struct {
 	Description               string                      `json:"description"`
 	Visibility                EventVisibility             `json:"visibility" validate:"omitempty,oneof=public invite_only"`
 	PlayerCap                 *int                        `json:"player_cap"`
+	SkipVoting                bool                        `json:"skip_voting"`
 	VotingDeadline            *time.Time                  `json:"voting_deadline"`
 	CreateEventOptionRequests []*CreateEventOptionRequest `json:"options" validate:"required,dive"`
 }
@@ -56,6 +57,14 @@ type UpdateEventStatusRequest struct {
 
 type UpdateEventChosenOptionRequest struct {
 	OptionID string `json:"option_id" validate:"required"`
+}
+
+type UpdateEventScheduleRequest struct {
+	VenueID   string    `json:"venue_id" validate:"required"`
+	Date      time.Time `json:"date" validate:"required"`
+	StartTime string    `json:"start_time" validate:"required"`
+	EndTime   string    `json:"end_time" validate:"required"`
+	Note      string    `json:"note" validate:"required"`
 }
 
 // EventSummary is used for dashboard list with status-specific info
@@ -157,6 +166,8 @@ type EventUsecase interface {
 	Create(ctx context.Context, userID string, req *CreateEventRequest) (*Event, error)
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error
+	UpdateSchedule(ctx context.Context, id string, userID string, req *UpdateEventScheduleRequest) error
+	ListScheduleChangeLogs(ctx context.Context, eventID string, userID string) ([]*EventScheduleChangeLog, error)
 	// CheckAndCompleteEvent checks if all payments are confirmed and marks event as completed
 	CheckAndCompleteEvent(ctx context.Context, eventID string) error
 	Delete(ctx context.Context, id string) error

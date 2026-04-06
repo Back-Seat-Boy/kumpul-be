@@ -113,6 +113,41 @@ func (h *APIHandler) UpdateEventChosenOption(c echo.Context) error {
 	return c.JSON(http.StatusOK, successResponse("Event chosen option updated", nil))
 }
 
+func (h *APIHandler) UpdateEventSchedule(c echo.Context) error {
+	ctx := c.Request().Context()
+	id := c.Param("id")
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
+
+	var req model.UpdateEventScheduleRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	if err := h.eventUsecase.UpdateSchedule(ctx, id, user.ID, &req); err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "id": id, "req": utils.Dump(req)}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Event schedule updated", nil))
+}
+
+func (h *APIHandler) ListEventScheduleChangeLogs(c echo.Context) error {
+	ctx := c.Request().Context()
+	id := c.Param("id")
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
+
+	logs, err := h.eventUsecase.ListScheduleChangeLogs(ctx, id, user.ID)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "id": id}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Event schedule change logs retrieved", logs))
+}
+
 func parseListEventsRequest(c echo.Context) *model.ListEventsRequest {
 	req := &model.ListEventsRequest{
 		Mode: model.PaginationModePage,
