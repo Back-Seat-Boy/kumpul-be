@@ -39,6 +39,14 @@ type CreateEventOptionRequest struct {
 	EndTime   string    `json:"end_time"`
 }
 
+type UpdateEventOptionRequest struct {
+	VenueID   string    `json:"venue_id" validate:"required"`
+	Date      time.Time `json:"date" validate:"required"`
+	StartTime string    `json:"start_time" validate:"required"`
+	EndTime   string    `json:"end_time" validate:"required"`
+	Note      string    `json:"note"`
+}
+
 type EventOptionRepository interface {
 	FindByID(ctx context.Context, id string) (*EventOption, error)
 	FindByEventID(ctx context.Context, eventID string) ([]*EventOption, error)
@@ -47,6 +55,8 @@ type EventOptionRepository interface {
 	FindVotersByOptionIDs(ctx context.Context, optionID []string) ([]VoterInfo, error)
 	Create(ctx context.Context, option *EventOption) error
 	BulkCreateWithTx(ctx context.Context, tx *gorm.DB, options []*EventOption) error
+	UpdateScheduleWithTx(ctx context.Context, tx *gorm.DB, optionID string, venueID string, date time.Time, startTime string, endTime string) error
+	UpdateWithTx(ctx context.Context, tx *gorm.DB, optionID string, venueID string, date time.Time, startTime string, endTime string) error
 	Delete(ctx context.Context, id string) error
 }
 
@@ -54,6 +64,8 @@ type EventOptionUsecase interface {
 	GetByID(ctx context.Context, id string) (*EventOption, error)
 	ListByEvent(ctx context.Context, eventID string, userID *string) ([]*EventOptionWithVoteCount, error)
 	ListByEventWithVoters(ctx context.Context, eventID string, userID *string) ([]*EventOptionWithVoteCount, error)
+	ListChangeLogs(ctx context.Context, eventID string, userID string) ([]*EventOptionChangeLog, error)
 	Create(ctx context.Context, eventID string, req *CreateEventOptionRequest) (*EventOption, error)
+	Update(ctx context.Context, eventID string, optionID string, userID string, req *UpdateEventOptionRequest) error
 	Delete(ctx context.Context, id string) error
 }

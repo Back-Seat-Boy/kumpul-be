@@ -40,6 +40,9 @@ var (
 	ErrSplitBillParticipantAssigned = errors.New("participant still has split bill items assigned")
 	ErrSplitBillManualAdjustBlocked = errors.New("split bill payment records cannot be adjusted manually")
 	ErrSplitBillChargeAllBlocked    = errors.New("split bill payments cannot use charge all")
+	ErrSkipVotingRequiresOneOption  = errors.New("skip voting requires exactly one option")
+	ErrEventScheduleEditNotAllowed  = errors.New("event schedule can only be edited while event is confirmed")
+	ErrEventOptionEditNotAllowed    = errors.New("event options can only be edited while event is voting")
 
 	// Event status errors
 	ErrEventNotOpenForJoining = errors.New("event is not open for joining")
