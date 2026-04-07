@@ -166,12 +166,17 @@ func (r *userRepo) Create(ctx context.Context, user *model.User) error {
 }
 
 func (r *userRepo) Update(ctx context.Context, user *model.User) error {
+	updatesMap := map[string]interface{}{
+		"name": user.Name,
+	}
+
+	if user.WhatsappNumber != "" {
+		updatesMap["whatsapp_number"] = user.WhatsappNumber
+	}
+
 	if err := r.db.WithContext(ctx).Model(&model.User{}).
 		Where("id = ?", user.ID).
-		Updates(map[string]interface{}{
-			"name":            user.Name,
-			"whatsapp_number": user.WhatsappNumber,
-		}).Error; err != nil {
+		Updates(updatesMap).Error; err != nil {
 		log.WithFields(log.Fields{
 			"ctx":  utils.DumpIncomingContext(ctx),
 			"user": utils.Dump(user),
