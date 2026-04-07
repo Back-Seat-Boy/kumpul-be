@@ -155,7 +155,7 @@ func (u *authUsecase) findOrCreateUser(ctx context.Context, googleUser *model.Go
 		return nil, err
 	}
 	if user != nil {
-		// Update the Google ID 
+		// Update the Google ID
 		user.GoogleID = googleUser.ID
 		user.Name = googleUser.Name
 		user.AvatarURL = googleUser.Picture
