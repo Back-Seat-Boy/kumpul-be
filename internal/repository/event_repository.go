@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/kumparan/go-utils"
@@ -14,8 +15,26 @@ type eventRepo struct {
 	db *gorm.DB
 }
 
+const (
+	eventScheduleDateExpr = "chosen_option.date"
+	eventSortDateExpr     = "COALESCE(chosen_option.date, events.created_at)"
+	eventActiveRankExpr   = "CASE WHEN events.status <> 'cancelled' AND COALESCE(chosen_option.date, events.created_at) >= CURRENT_DATE THEN 0 ELSE 1 END"
+)
+
 func NewEventRepository(db *gorm.DB) model.EventRepository {
 	return &eventRepo{db: db}
+}
+
+func applyEventListScheduleJoins(query *gorm.DB) *gorm.DB {
+	return query.Joins("LEFT JOIN event_options chosen_option ON chosen_option.id = events.chosen_option_id")
+}
+
+func applyEventListOrdering(query *gorm.DB) *gorm.DB {
+	return query.
+		Order(eventActiveRankExpr + " ASC").
+		Order("CASE WHEN " + eventActiveRankExpr + " = 0 THEN " + eventSortDateExpr + " END ASC").
+		Order("CASE WHEN " + eventActiveRankExpr + " = 1 THEN " + eventSortDateExpr + " END DESC").
+		Order("events.id DESC")
 }
 
 func applyEventVisibilityForRequester(query *gorm.DB, requesterUserID string) *gorm.DB {
@@ -183,16 +202,20 @@ func (r *eventRepo) ListPaginated(ctx context.Context, req *model.ListEventsRequ
 	})
 
 	query := r.db.WithContext(ctx).Model(&model.Event{}).Preload("Creator")
+	query = applyEventListScheduleJoins(query)
 	query = applyEventVisibilityForRequester(query, req.RequesterUserID)
 	if req.Filter.Search != "" {
-		query = query.Where("title ILIKE ?", "%"+req.Filter.Search+"%")
+		query = query.Where("events.title ILIKE ?", "%"+req.Filter.Search+"%")
 	}
 
 	if req.Filter.Status != "" {
-		query = query.Where("status = ?", req.Filter.Status)
+		query = query.Where("events.status = ?", req.Filter.Status)
 	}
 	if req.Filter.Visibility != "" {
-		query = query.Where("visibility = ?", req.Filter.Visibility)
+		query = query.Where("events.visibility = ?", req.Filter.Visibility)
+	}
+	if req.Filter.EventDate != "" {
+		query = query.Where("DATE("+eventSortDateExpr+") = ?", req.Filter.EventDate)
 	}
 
 	var total int64
@@ -201,14 +224,75 @@ func (r *eventRepo) ListPaginated(ctx context.Context, req *model.ListEventsRequ
 		return nil, 0, fmt.Errorf("failed to count events: %w", err)
 	}
 
-	query = query.Order("created_at DESC")
+	query = applyEventListOrdering(query)
 	if req.Mode == model.PaginationModeCursor && req.Cursor != "" {
-		var cursorEvent model.Event
-		if err := r.db.WithContext(ctx).First(&cursorEvent, "id = ?", req.Cursor).Error; err != nil {
+		type eventCursor struct {
+			ID           string
+			CreatedAt    time.Time
+			ScheduleDate *time.Time
+			SortDate     time.Time
+			ActiveRank   int
+		}
+
+		var cursorEvent eventCursor
+		cursorQuery := r.db.WithContext(ctx).
+			Model(&model.Event{}).
+			Select(
+				"events.id",
+				"events.created_at",
+				eventScheduleDateExpr+" AS schedule_date",
+				eventSortDateExpr+" AS sort_date",
+				eventActiveRankExpr+" AS active_rank",
+			)
+		cursorQuery = applyEventListScheduleJoins(cursorQuery)
+
+		if err := cursorQuery.Where("events.id = ?", req.Cursor).First(&cursorEvent).Error; err != nil {
 			logger.Error(err)
 			return nil, 0, fmt.Errorf("invalid cursor: %w", err)
 		}
-		query = query.Where("created_at <= ? AND id != ?", cursorEvent.CreatedAt, req.Cursor)
+
+		query = query.Where(
+			fmt.Sprintf(`(
+				%s > ?
+				OR (
+					%s = ?
+					AND (
+						(
+							%s = 0
+							AND (
+								%s > ?
+								OR (
+									%s = ?
+									AND (
+										events.id < ?
+									)
+								)
+							)
+						)
+						OR (
+							%s = 1
+							AND (
+								%s < ?
+								OR (
+									%s = ?
+									AND (
+										events.id < ?
+									)
+								)
+							)
+						)
+					)
+				)
+			)`, eventActiveRankExpr, eventActiveRankExpr, eventActiveRankExpr, eventSortDateExpr, eventSortDateExpr, eventActiveRankExpr, eventSortDateExpr, eventSortDateExpr),
+			cursorEvent.ActiveRank,
+			cursorEvent.ActiveRank,
+			cursorEvent.SortDate,
+			cursorEvent.SortDate,
+			cursorEvent.ID,
+			cursorEvent.SortDate,
+			cursorEvent.SortDate,
+			cursorEvent.ID,
+		)
 	} else {
 		if req.Page <= 0 {
 			req.Page = 1
