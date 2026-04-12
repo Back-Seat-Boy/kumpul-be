@@ -15,24 +15,67 @@ type participantUsecase struct {
 	participantRepo   model.ParticipantRepository
 	paymentRepo       model.PaymentRepository
 	paymentRecordRepo model.PaymentRecordRepository
+	refundUsecase     model.RefundUsecase
 	splitBillRepo     model.SplitBillRepository
 	eventRepo         model.EventRepository
 	gormTransactioner model.GormTransactioner
 }
 
-func NewParticipantUsecase(participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, splitBillRepo model.SplitBillRepository, eventRepo model.EventRepository, gormTransactioner model.GormTransactioner) model.ParticipantUsecase {
+func NewParticipantUsecase(participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, refundUsecase model.RefundUsecase, splitBillRepo model.SplitBillRepository, eventRepo model.EventRepository, gormTransactioner model.GormTransactioner) model.ParticipantUsecase {
 	return &participantUsecase{
 		participantRepo:   participantRepo,
 		paymentRepo:       paymentRepo,
 		paymentRecordRepo: paymentRecordRepo,
+		refundUsecase:     refundUsecase,
 		splitBillRepo:     splitBillRepo,
 		eventRepo:         eventRepo,
 		gormTransactioner: gormTransactioner,
 	}
 }
 
-func (u *participantUsecase) ListByEvent(ctx context.Context, eventID string) ([]*model.Participant, error) {
-	return u.participantRepo.FindByEventID(ctx, eventID)
+func (u *participantUsecase) ListByEvent(ctx context.Context, req *model.ListParticipantsRequest) (*model.ListParticipantsResponse, error) {
+	if req == nil {
+		req = &model.ListParticipantsRequest{}
+	}
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+	if req.Limit > 100 {
+		req.Limit = 100
+	}
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.SortOrder == "" {
+		req.SortOrder = model.ParticipantSortOrderAsc
+	}
+
+	participants, total, err := u.participantRepo.ListPaginatedByEvent(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &model.ListParticipantsResponse{
+		Participants: participants,
+		Total:        total,
+		HasMore:      false,
+	}
+
+	if len(participants) == 0 {
+		return response, nil
+	}
+
+	lastParticipant := participants[len(participants)-1]
+	response.NextCursor = lastParticipant.ID
+
+	if req.Mode == model.PaginationModeCursor {
+		response.HasMore = int64(len(participants)) == int64(req.Limit) && total > int64(len(participants))
+	} else {
+		offset := req.Page * req.Limit
+		response.HasMore = int64(offset) < total
+	}
+
+	return response, nil
 }
 
 func (u *participantUsecase) Join(ctx context.Context, eventID string, userID string, viaShareLink bool) error {
@@ -141,6 +184,26 @@ func (u *participantUsecase) RemoveParticipant(ctx context.Context, eventID stri
 	if err != nil {
 		logger.Error(err)
 		return nil, err
+	}
+
+	// Handle payment record deletion before removing participant
+	if payment != nil {
+		record, err := u.paymentRecordRepo.FindByPaymentIDAndParticipantID(ctx, payment.ID, participant.ID)
+		if err != nil && err != model.ErrPaymentRecordNotFound {
+			logger.Error(err)
+			return nil, err
+		}
+		if err == nil && record != nil {
+			refund, refundErr := u.refundUsecase.CreateForRemovedParticipant(ctx, event, payment, participant, record)
+			if refundErr != nil {
+				logger.Error(refundErr)
+				return nil, refundErr
+			}
+			if refund != nil && result.RemovedPayment != nil {
+				result.RemovedPayment.RefundID = refund.ID
+				result.RemovedPayment.RefundStatus = string(refund.Status)
+			}
+		}
 	}
 
 	// Handle payment record deletion before removing participant

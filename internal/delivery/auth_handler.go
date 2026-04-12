@@ -31,7 +31,7 @@ func (h *APIHandler) GoogleCallback(c echo.Context) error {
 	}
 
 	// Redirect to frontend with session data including expires_at
-	redirectURL := fmt.Sprintf("%s/auth/callback?session_id=%s&expires_at=%s&user_id=%s&user_name=%s&user_email=%s&email_verified=%t&avatar_url=%s",
+	redirectURL := fmt.Sprintf("%s/auth/callback?session_id=%s&expires_at=%s&user_id=%s&user_name=%s&user_email=%s&email_verified=%t&avatar_url=%s&whatsapp_number=%s",
 		config.FrontendURL(),
 		session.ID,
 		session.ExpiresAt.Format("2006-01-02T15:04:05Z"),
@@ -40,6 +40,7 @@ func (h *APIHandler) GoogleCallback(c echo.Context) error {
 		urlEncode(user.Email),
 		user.EmailVerified,
 		urlEncode(user.AvatarURL),
+		urlEncode(user.WhatsappNumber),
 	)
 	return c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }

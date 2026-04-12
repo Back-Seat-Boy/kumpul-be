@@ -19,6 +19,13 @@ type Participant struct {
 	User      User        `json:"user,omitempty" gorm:"foreignKey:UserID"`
 }
 
+type ParticipantSortOrder string
+
+const (
+	ParticipantSortOrderAsc  ParticipantSortOrder = "asc"
+	ParticipantSortOrderDesc ParticipantSortOrder = "desc"
+)
+
 func (p *Participant) SetDerivedFields() {
 	if p == nil {
 		return
@@ -28,6 +35,7 @@ func (p *Participant) SetDerivedFields() {
 
 type ParticipantRepository interface {
 	FindByEventID(ctx context.Context, eventID string) ([]*Participant, error)
+	ListPaginatedByEvent(ctx context.Context, req *ListParticipantsRequest) ([]*Participant, int64, error)
 	FindByEventIDAndID(ctx context.Context, eventID, id string) (*Participant, error)
 	FindByEventIDAndUserID(ctx context.Context, eventID, userID string) (*Participant, error)
 	FindByEventIDAndGuestName(ctx context.Context, eventID, guestName string) (*Participant, error)
@@ -55,6 +63,8 @@ type RemovedParticipantPayment struct {
 	Amount               int            `json:"amount"`
 	PaidAmount           int            `json:"paid_amount"`
 	RefundAmount         int            `json:"refund_amount"`
+	RefundID             string         `json:"refund_id,omitempty"`
+	RefundStatus         string         `json:"refund_status,omitempty"`
 	PendingClaimedAmount int            `json:"pending_claimed_amount"`
 	Claims               []PaymentClaim `json:"claims"`
 }
@@ -76,8 +86,29 @@ type JoinAsGuestRequest struct {
 	GuestName string `json:"guest_name" validate:"required"`
 }
 
+type ListParticipantsFilter struct {
+	Search string
+}
+
+type ListParticipantsRequest struct {
+	Mode      PaginationMode
+	Page      int
+	Limit     int
+	Cursor    string
+	EventID   string
+	SortOrder ParticipantSortOrder
+	Filter    ListParticipantsFilter
+}
+
+type ListParticipantsResponse struct {
+	Participants []*Participant `json:"participants"`
+	Total        int64          `json:"total,omitempty"`
+	NextCursor   string         `json:"next_cursor,omitempty"`
+	HasMore      bool           `json:"has_more,omitempty"`
+}
+
 type ParticipantUsecase interface {
-	ListByEvent(ctx context.Context, eventID string) ([]*Participant, error)
+	ListByEvent(ctx context.Context, req *ListParticipantsRequest) (*ListParticipantsResponse, error)
 	Join(ctx context.Context, eventID string, userID string, viaShareLink bool) error
 	JoinAsGuest(ctx context.Context, userID, eventID string, req *JoinAsGuestRequest, viaShareLink bool) error
 	Leave(ctx context.Context, eventID string, userID string) error

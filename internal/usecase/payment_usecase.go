@@ -15,6 +15,7 @@ import (
 
 type paymentUsecase struct {
 	paymentRepo       model.PaymentRepository
+	paymentMethodRepo model.PaymentMethodRepository
 	paymentRecordRepo model.PaymentRecordRepository
 	splitBillRepo     model.SplitBillRepository
 	participantRepo   model.ParticipantRepository
@@ -23,9 +24,10 @@ type paymentUsecase struct {
 	gormTransactioner model.GormTransactioner
 }
 
-func NewPaymentUsecase(paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, splitBillRepo model.SplitBillRepository, participantRepo model.ParticipantRepository, eventRepo model.EventRepository, paymentRecordUC model.PaymentRecordUsecase, gormTransactioner model.GormTransactioner) model.PaymentUsecase {
+func NewPaymentUsecase(paymentRepo model.PaymentRepository, paymentMethodRepo model.PaymentMethodRepository, paymentRecordRepo model.PaymentRecordRepository, splitBillRepo model.SplitBillRepository, participantRepo model.ParticipantRepository, eventRepo model.EventRepository, paymentRecordUC model.PaymentRecordUsecase, gormTransactioner model.GormTransactioner) model.PaymentUsecase {
 	return &paymentUsecase{
 		paymentRepo:       paymentRepo,
+		paymentMethodRepo: paymentMethodRepo,
 		paymentRecordRepo: paymentRecordRepo,
 		splitBillRepo:     splitBillRepo,
 		participantRepo:   participantRepo,
@@ -135,15 +137,22 @@ func (u *paymentUsecase) Create(ctx context.Context, eventID string, req *model.
 		return nil, err
 	}
 
+	paymentMethodID, paymentInfo, paymentImageURL, err := u.resolvePaymentDetails(ctx, event.CreatedBy, req.PaymentMethodID, req.PaymentInfo, req.PaymentImageURL)
+	if err != nil {
+		return nil, err
+	}
+
 	payment := &model.Payment{
-		ID:          uuid.New().String(),
-		EventID:     eventID,
-		TotalCost:   totalCost,
-		BaseSplit:   baseSplit,
-		TaxAmount:   taxAmount,
-		Type:        paymentType,
-		PaymentInfo: req.PaymentInfo,
-		CreatedAt:   time.Now(),
+		ID:              uuid.New().String(),
+		EventID:         eventID,
+		TotalCost:       totalCost,
+		BaseSplit:       baseSplit,
+		TaxAmount:       taxAmount,
+		Type:            paymentType,
+		PaymentMethodID: paymentMethodID,
+		PaymentInfo:     paymentInfo,
+		PaymentImageURL: paymentImageURL,
+		CreatedAt:       time.Now(),
 	}
 
 	tx := u.gormTransactioner.Begin(ctx)
@@ -280,11 +289,18 @@ func (u *paymentUsecase) UpdatePaymentInfo(ctx context.Context, eventID string, 
 		return nil, err
 	}
 
-	if err := u.paymentRepo.UpdatePaymentInfo(ctx, payment.ID, req.PaymentInfo); err != nil {
+	paymentMethodID, paymentInfo, paymentImageURL, err := u.resolvePaymentDetails(ctx, requesterID, req.PaymentMethodID, req.PaymentInfo, req.PaymentImageURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := u.paymentRepo.UpdatePaymentInfo(ctx, payment.ID, paymentMethodID, paymentInfo, paymentImageURL); err != nil {
 		logger.Error(err)
 		return nil, err
 	}
-	payment.PaymentInfo = req.PaymentInfo
+	payment.PaymentMethodID = paymentMethodID
+	payment.PaymentInfo = paymentInfo
+	payment.PaymentImageURL = paymentImageURL
 	return payment, nil
 }
 
@@ -481,6 +497,30 @@ func paymentConfigEditable(records []*model.PaymentRecord, creatorID string) boo
 		}
 	}
 	return true
+}
+
+func (u *paymentUsecase) resolvePaymentDetails(ctx context.Context, userID string, paymentMethodID string, paymentInfo string, paymentImageURL string) (*string, string, string, error) {
+	var resolvedMethodID *string
+
+	if paymentMethodID != "" {
+		paymentMethod, err := u.paymentMethodRepo.FindByIDAndUserID(ctx, paymentMethodID, userID)
+		if err != nil {
+			return nil, "", "", err
+		}
+		resolvedMethodID = &paymentMethod.ID
+		if paymentInfo == "" {
+			paymentInfo = paymentMethod.PaymentInfo
+		}
+		if paymentImageURL == "" {
+			paymentImageURL = paymentMethod.ImageURL
+		}
+	}
+
+	if paymentInfo == "" {
+		return nil, "", "", model.NewAppError(nil, 400, "payment_info or payment_method_id is required")
+	}
+
+	return resolvedMethodID, paymentInfo, paymentImageURL, nil
 }
 
 func (u *paymentUsecase) preparePaymentConfig(ctx context.Context, eventID string, paymentType model.PaymentType, totalCost, perPersonAmount, taxAmount int, inputs []model.SplitBillItemInput) ([]*model.SplitBillItem, map[string]int, int, int, int, error) {

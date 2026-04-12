@@ -67,26 +67,31 @@ func run(_ *cobra.Command, _ []string) {
 	sessionRepo := repository.NewSessionRepository(cacheKeeper)
 	venueRepo := repository.NewVenueRepository(db)
 	eventRepo := repository.NewEventRepository(db)
+	eventImageRepo := repository.NewEventImageRepository(db)
 	eventOptionRepo := repository.NewEventOptionRepository(db)
 	eventOptionChangeLogRepo := repository.NewEventOptionChangeLogRepository(db)
 	eventScheduleChangeLogRepo := repository.NewEventScheduleChangeLogRepository(db)
 	voteRepo := repository.NewVoteRepository(db)
 	participantRepo := repository.NewParticipantRepository(db)
 	paymentRepo := repository.NewPaymentRepository(db)
+	paymentMethodRepo := repository.NewPaymentMethodRepository(db)
 	paymentRecordRepo := repository.NewPaymentRecordRepository(db)
 	paymentClaimRepo := repository.NewPaymentClaimRepository(db)
+	refundRepo := repository.NewRefundRepository(db)
 	splitBillRepo := repository.NewSplitBillRepository(db)
 	gormTransactioner := repository.NewGormTransactioner(db)
 
 	sessionUC := usecase.NewSessionUsecase(sessionRepo)
 	userUC := usecase.NewUserUsecase(userRepo)
 	venueUC := usecase.NewVenueUsecase(venueRepo)
-	eventUC := usecase.NewEventUsecase(eventRepo, gormTransactioner, eventOptionRepo, eventScheduleChangeLogRepo, participantRepo, paymentRepo, paymentRecordRepo, venueRepo)
+	eventUC := usecase.NewEventUsecase(eventRepo, gormTransactioner, eventOptionRepo, eventImageRepo, eventScheduleChangeLogRepo, participantRepo, paymentRepo, paymentRecordRepo, venueRepo)
 	eventOptionUC := usecase.NewEventOptionUsecase(eventOptionRepo, eventRepo, venueRepo, eventOptionChangeLogRepo, gormTransactioner)
 	voteUC := usecase.NewVoteUsecase(voteRepo, eventRepo, eventOptionRepo)
-	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, splitBillRepo, eventRepo, gormTransactioner)
+	refundUC := usecase.NewRefundUsecase(refundRepo, eventRepo, paymentMethodRepo)
+	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, refundUC, splitBillRepo, eventRepo, gormTransactioner)
+	paymentMethodUC := usecase.NewPaymentMethodUsecase(paymentMethodRepo)
 	paymentRecordUC := usecase.NewPaymentRecordUsecase(paymentRecordRepo, paymentClaimRepo, paymentRepo, eventRepo, participantRepo)
-	paymentUC := usecase.NewPaymentUsecase(paymentRepo, paymentRecordRepo, splitBillRepo, participantRepo, eventRepo, paymentRecordUC, gormTransactioner)
+	paymentUC := usecase.NewPaymentUsecase(paymentRepo, paymentMethodRepo, paymentRecordRepo, splitBillRepo, participantRepo, eventRepo, paymentRecordUC, gormTransactioner)
 	uploadUC := usecase.NewUploadUsecase(cld)
 
 	authCfg := model.AuthConfig{
@@ -106,8 +111,10 @@ func run(_ *cobra.Command, _ []string) {
 		eventOptionUC,
 		voteUC,
 		participantUC,
+		paymentMethodUC,
 		paymentUC,
 		paymentRecordUC,
+		refundUC,
 		uploadUC,
 	)
 	apiHandler.Routes(e)

@@ -143,12 +143,19 @@ func (r *paymentRepo) UpdateConfigWithTx(ctx context.Context, tx *gorm.DB, id st
 	return nil
 }
 
-func (r *paymentRepo) UpdatePaymentInfo(ctx context.Context, id string, paymentInfo string) error {
-	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Update("payment_info", paymentInfo).Error; err != nil {
+func (r *paymentRepo) UpdatePaymentInfo(ctx context.Context, id string, paymentMethodID *string, paymentInfo string, paymentImageURL string) error {
+	updates := map[string]interface{}{
+		"payment_method_id": paymentMethodID,
+		"payment_info":      paymentInfo,
+		"payment_image_url": paymentImageURL,
+	}
+	if err := r.db.WithContext(ctx).Model(&model.Payment{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		log.WithFields(log.Fields{
-			"ctx":         utils.DumpIncomingContext(ctx),
-			"id":          id,
-			"paymentInfo": paymentInfo,
+			"ctx":             utils.DumpIncomingContext(ctx),
+			"id":              id,
+			"paymentMethodID": paymentMethodID,
+			"paymentInfo":     paymentInfo,
+			"paymentImageURL": paymentImageURL,
 		}).Error(err)
 		return fmt.Errorf("failed to update payment info: %w", err)
 	}

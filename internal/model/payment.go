@@ -16,14 +16,16 @@ const (
 )
 
 type Payment struct {
-	ID          string      `json:"id" gorm:"primaryKey;type:uuid"`
-	EventID     string      `json:"event_id" gorm:"type:uuid;uniqueIndex;not null"`
-	TotalCost   int         `json:"total_cost" gorm:"not null"`
-	BaseSplit   int         `json:"base_split" gorm:"column:base_split;not null"`
-	TaxAmount   int         `json:"tax_amount" gorm:"not null;default:0"`
-	Type        PaymentType `json:"type" gorm:"type:varchar(20);not null;default:'total'"`
-	PaymentInfo string      `json:"payment_info" gorm:"not null"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID              string      `json:"id" gorm:"primaryKey;type:uuid"`
+	EventID         string      `json:"event_id" gorm:"type:uuid;uniqueIndex;not null"`
+	TotalCost       int         `json:"total_cost" gorm:"not null"`
+	BaseSplit       int         `json:"base_split" gorm:"column:base_split;not null"`
+	TaxAmount       int         `json:"tax_amount" gorm:"not null;default:0"`
+	Type            PaymentType `json:"type" gorm:"type:varchar(20);not null;default:'total'"`
+	PaymentMethodID *string     `json:"payment_method_id,omitempty" gorm:"type:uuid"`
+	PaymentInfo     string      `json:"payment_info" gorm:"not null"`
+	PaymentImageURL string      `json:"payment_image_url,omitempty"`
+	CreatedAt       time.Time   `json:"created_at"`
 }
 
 type CreatePaymentRequest struct {
@@ -32,11 +34,15 @@ type CreatePaymentRequest struct {
 	PerPersonAmount int                  `json:"per_person_amount"`
 	TaxAmount       int                  `json:"tax_amount"`
 	SplitBillItems  []SplitBillItemInput `json:"split_bill_items"`
-	PaymentInfo     string               `json:"payment_info" validate:"required"`
+	PaymentMethodID string               `json:"payment_method_id"`
+	PaymentInfo     string               `json:"payment_info"`
+	PaymentImageURL string               `json:"payment_image_url"`
 }
 
 type UpdatePaymentRequest struct {
-	PaymentInfo string `json:"payment_info" validate:"required"`
+	PaymentMethodID string `json:"payment_method_id"`
+	PaymentInfo     string `json:"payment_info"`
+	PaymentImageURL string `json:"payment_image_url"`
 }
 
 type UpdatePaymentConfigRequest struct {
@@ -56,7 +62,7 @@ type PaymentRepository interface {
 	UpdateTotals(ctx context.Context, id string, totalCost, baseSplit, taxAmount int) error
 	UpdateTotalsWithTx(ctx context.Context, tx *gorm.DB, id string, totalCost, baseSplit, taxAmount int) error
 	UpdateConfigWithTx(ctx context.Context, tx *gorm.DB, id string, paymentType PaymentType, totalCost, baseSplit, taxAmount int) error
-	UpdatePaymentInfo(ctx context.Context, id string, paymentInfo string) error
+	UpdatePaymentInfo(ctx context.Context, id string, paymentMethodID *string, paymentInfo string, paymentImageURL string) error
 }
 
 type PaymentUsecase interface {
