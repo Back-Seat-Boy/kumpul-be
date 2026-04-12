@@ -22,7 +22,6 @@ func NewSessionRepository(keeper cacher.Keeper) model.SessionRepository {
 
 func (r *sessionRepo) Create(ctx context.Context, session *model.Session, ttl time.Duration) error {
 	key := fmt.Sprintf("session:%s", session.ID)
-	fmt.Println("store key")
 	if err := r.keeper.StoreWithoutBlocking(cacher.NewItemWithCustomTTL(key, utils.ToByte(session), ttl)); err != nil {
 		log.WithFields(log.Fields{
 			"context": utils.DumpIncomingContext(ctx),

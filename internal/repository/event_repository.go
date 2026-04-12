@@ -15,6 +15,12 @@ type eventRepo struct {
 	db *gorm.DB
 }
 
+func preloadEventImages(db *gorm.DB) *gorm.DB {
+	return db.Preload("Images", func(tx *gorm.DB) *gorm.DB {
+		return tx.Order("position ASC")
+	})
+}
+
 const (
 	eventScheduleDateExpr = "chosen_option.date"
 	eventSortDateExpr     = "COALESCE(chosen_option.date, events.created_at)"
@@ -74,7 +80,7 @@ func (r *eventRepo) FindByID(ctx context.Context, id string) (*model.Event, erro
 	})
 
 	var event model.Event
-	if err := r.db.WithContext(ctx).Preload("Creator").Preload("ChosenOption").First(&event, "id = ?", id).Error; err != nil {
+	if err := preloadEventImages(r.db.WithContext(ctx).Preload("Creator").Preload("ChosenOption")).First(&event, "id = ?", id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, model.ErrEventNotFound
 		}
@@ -91,7 +97,7 @@ func (r *eventRepo) FindByShareToken(ctx context.Context, token string) (*model.
 	})
 
 	var event model.Event
-	if err := r.db.WithContext(ctx).Preload("Creator").Preload("ChosenOption").First(&event, "share_token = ?", token).Error; err != nil {
+	if err := preloadEventImages(r.db.WithContext(ctx).Preload("Creator").Preload("ChosenOption")).First(&event, "share_token = ?", token).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, model.ErrEventNotFound
 		}
@@ -108,7 +114,7 @@ func (r *eventRepo) FindByCreatedBy(ctx context.Context, createdBy string) ([]*m
 	})
 
 	var events []*model.Event
-	if err := r.db.WithContext(ctx).Where("created_by = ?", createdBy).Order("created_at desc").Find(&events).Error; err != nil {
+	if err := preloadEventImages(r.db.WithContext(ctx)).Where("created_by = ?", createdBy).Order("created_at desc").Find(&events).Error; err != nil {
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
@@ -124,7 +130,8 @@ func (r *eventRepo) FindVisibleCreatedByUser(ctx context.Context, createdBy stri
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Event{}).
-		Preload("Creator").
+		Preload("Creator")
+	query = preloadEventImages(query).
 		Where("events.created_by = ?", createdBy).
 		Order("events.created_at desc")
 	query = applyEventVisibilityForRequester(query, requesterUserID)
@@ -147,6 +154,7 @@ func (r *eventRepo) FindByParticipantUserID(ctx context.Context, userID string) 
 	if err := r.db.WithContext(ctx).
 		Model(&model.Event{}).
 		Preload("Creator").
+		Preload("Images", func(tx *gorm.DB) *gorm.DB { return tx.Order("position ASC") }).
 		Joins("JOIN participants ON participants.event_id = events.id").
 		Where("participants.user_id = ?", userID).
 		Group("events.id").
@@ -167,7 +175,8 @@ func (r *eventRepo) FindVisibleParticipatedByUser(ctx context.Context, userID st
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Event{}).
-		Preload("Creator").
+		Preload("Creator")
+	query = preloadEventImages(query).
 		Joins("JOIN participants ON participants.event_id = events.id").
 		Where("participants.user_id = ?", userID).
 		Group("events.id").
@@ -188,7 +197,7 @@ func (r *eventRepo) List(ctx context.Context) ([]*model.Event, error) {
 	})
 
 	var events []*model.Event
-	if err := r.db.WithContext(ctx).Order("created_at desc").Find(&events).Error; err != nil {
+	if err := preloadEventImages(r.db.WithContext(ctx)).Order("created_at desc").Find(&events).Error; err != nil {
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
@@ -201,7 +210,7 @@ func (r *eventRepo) ListPaginated(ctx context.Context, req *model.ListEventsRequ
 		"req":     req,
 	})
 
-	query := r.db.WithContext(ctx).Model(&model.Event{}).Preload("Creator")
+	query := preloadEventImages(r.db.WithContext(ctx).Model(&model.Event{}).Preload("Creator"))
 	query = applyEventListScheduleJoins(query)
 	query = applyEventVisibilityForRequester(query, req.RequesterUserID)
 	if req.Filter.Search != "" {

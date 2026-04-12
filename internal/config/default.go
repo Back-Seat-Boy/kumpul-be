@@ -25,5 +25,5 @@ const (
 	DefaultRedisMaxConnLifetime = time.Minute
 
 	// DefaultCacheTTL default ttl for cache
-	DefaultCacheTTL = 5 * time.Minute
+	DefaultCacheTTL = 15 * time.Minute
 )

@@ -61,6 +61,9 @@ func (h *APIHandler) CreatePayment(c echo.Context) error {
 	if err := c.Validate(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
+	if req.PaymentMethodID == "" && req.PaymentInfo == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "payment_info or payment_method_id is required")
+	}
 	switch req.Type {
 	case "", string(model.PaymentTypeTotal):
 		if req.TotalCost <= 0 {
@@ -98,6 +101,9 @@ func (h *APIHandler) UpdatePayment(c echo.Context) error {
 	}
 	if err := c.Validate(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if req.PaymentMethodID == "" && req.PaymentInfo == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "payment_info or payment_method_id is required")
 	}
 
 	payment, err := h.paymentUsecase.UpdatePaymentInfo(ctx, eventID, requester.ID, &req)

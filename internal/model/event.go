@@ -39,6 +39,7 @@ type Event struct {
 	CreatedAt      time.Time       `json:"created_at"`
 	Creator        User            `json:"creator" gorm:"foreignKey:CreatedBy"`
 	ChosenOption   *EventOption    `json:"chosen_option,omitempty" gorm:"foreignKey:ChosenOptionID"`
+	Images         []EventImage    `json:"images,omitempty" gorm:"foreignKey:EventID"`
 }
 
 type CreateEventRequest struct {
@@ -48,6 +49,7 @@ type CreateEventRequest struct {
 	PlayerCap                 *int                        `json:"player_cap"`
 	SkipVoting                bool                        `json:"skip_voting"`
 	VotingDeadline            *time.Time                  `json:"voting_deadline"`
+	ImageURLs                 []string                    `json:"image_urls"`
 	CreateEventOptionRequests []*CreateEventOptionRequest `json:"options" validate:"required,dive"`
 }
 
@@ -167,6 +169,7 @@ type EventUsecase interface {
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error
 	UpdateSchedule(ctx context.Context, id string, userID string, req *UpdateEventScheduleRequest) error
+	UpdateImages(ctx context.Context, id string, userID string, req *UpdateEventImagesRequest) ([]*EventImage, error)
 	ListScheduleChangeLogs(ctx context.Context, eventID string, userID string) ([]*EventScheduleChangeLog, error)
 	// CheckAndCompleteEvent checks if all payments are confirmed and marks event as completed
 	CheckAndCompleteEvent(ctx context.Context, eventID string) error

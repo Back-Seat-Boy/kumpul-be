@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
 	"github.com/kumparan/go-utils"
@@ -12,6 +13,7 @@ import (
 func (h *APIHandler) ListParticipants(c echo.Context) error {
 	ctx := c.Request().Context()
 	eventID := c.Param("event_id")
+	req := parseListParticipantsRequest(c)
 
 	// If accessed via public route with token, look up event by share token
 	if eventID == "" {
@@ -22,14 +24,44 @@ func (h *APIHandler) ListParticipants(c echo.Context) error {
 		}
 		eventID = event.ID
 	}
+	req.EventID = eventID
 
-	participants, err := h.participantUsecase.ListByEvent(ctx, eventID)
+	participants, err := h.participantUsecase.ListByEvent(ctx, req)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID}).Error()
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Participants retrieved", participants))
+}
+
+func parseListParticipantsRequest(c echo.Context) *model.ListParticipantsRequest {
+	req := &model.ListParticipantsRequest{
+		Mode:      model.PaginationModePage,
+		SortOrder: model.ParticipantSortOrderAsc,
+	}
+
+	if mode := c.QueryParam("mode"); mode == "cursor" {
+		req.Mode = model.PaginationModeCursor
+	}
+	if pageStr := c.QueryParam("page"); pageStr != "" {
+		if page, err := strconv.Atoi(pageStr); err == nil {
+			req.Page = page
+		}
+	}
+	if limitStr := c.QueryParam("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil {
+			req.Limit = limit
+		}
+	}
+
+	req.Cursor = c.QueryParam("cursor")
+	req.Filter.Search = c.QueryParam("search")
+	if sortOrder := c.QueryParam("sort_order"); sortOrder != "" {
+		req.SortOrder = model.ParticipantSortOrder(sortOrder)
+	}
+
+	return req
 }
 
 func (h *APIHandler) JoinEvent(c echo.Context) error {

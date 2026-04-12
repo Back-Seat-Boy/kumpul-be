@@ -18,6 +18,7 @@ type eventUsecase struct {
 	eventRepo                  model.EventRepository
 	gormTransactioner          model.GormTransactioner
 	eventOptionRepo            model.EventOptionRepository
+	eventImageRepo             model.EventImageRepository
 	eventScheduleChangeLogRepo model.EventScheduleChangeLogRepository
 	participantRepo            model.ParticipantRepository
 	paymentRepo                model.PaymentRepository
@@ -25,11 +26,12 @@ type eventUsecase struct {
 	venueRepo                  model.VenueRepository
 }
 
-func NewEventUsecase(eventRepo model.EventRepository, gormTransactioner model.GormTransactioner, eventOptionRepo model.EventOptionRepository, eventScheduleChangeLogRepo model.EventScheduleChangeLogRepository, participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, venueRepo model.VenueRepository) model.EventUsecase {
+func NewEventUsecase(eventRepo model.EventRepository, gormTransactioner model.GormTransactioner, eventOptionRepo model.EventOptionRepository, eventImageRepo model.EventImageRepository, eventScheduleChangeLogRepo model.EventScheduleChangeLogRepository, participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, venueRepo model.VenueRepository) model.EventUsecase {
 	return &eventUsecase{
 		eventRepo:                  eventRepo,
 		gormTransactioner:          gormTransactioner,
 		eventOptionRepo:            eventOptionRepo,
+		eventImageRepo:             eventImageRepo,
 		eventScheduleChangeLogRepo: eventScheduleChangeLogRepo,
 		participantRepo:            participantRepo,
 		paymentRepo:                paymentRepo,
@@ -249,6 +251,22 @@ func (u *eventUsecase) buildEventSummaries(ctx context.Context, events []*model.
 	return summaries, nil
 }
 
+func buildEventImages(eventID string, imageURLs []string) []*model.EventImage {
+	images := make([]*model.EventImage, 0, len(imageURLs))
+	for i, imageURL := range imageURLs {
+		if imageURL == "" {
+			continue
+		}
+		images = append(images, &model.EventImage{
+			ID:       uuid.New().String(),
+			EventID:  eventID,
+			ImageURL: imageURL,
+			Position: i + 1,
+		})
+	}
+	return images
+}
+
 func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.CreateEventRequest) (*model.Event, error) {
 	logger := log.WithFields(log.Fields{
 		"ctx": utils.DumpIncomingContext(ctx),
@@ -260,6 +278,9 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 	}
 	if len(req.CreateEventOptionRequests) == 0 {
 		return nil, model.ErrEventOptionNotFound
+	}
+	if len(req.ImageURLs) > 3 {
+		return nil, model.ErrEventImageLimitReached
 	}
 	if req.SkipVoting && len(req.CreateEventOptionRequests) != 1 {
 		return nil, model.ErrSkipVotingRequiresOneOption
@@ -294,6 +315,17 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 	if err := u.eventRepo.CreateWithTx(ctx, tx, event); err != nil {
 		logger.Error(err)
 		return nil, err
+	}
+
+	eventImages := buildEventImages(event.ID, req.ImageURLs)
+	if err := u.eventImageRepo.ReplaceByEventIDWithTx(ctx, tx, event.ID, eventImages); err != nil {
+		logger.Error(err)
+		tx.Rollback()
+		return nil, err
+	}
+	event.Images = make([]model.EventImage, 0, len(eventImages))
+	for _, image := range eventImages {
+		event.Images = append(event.Images, *image)
 	}
 
 	if len(req.CreateEventOptionRequests) > 0 {
@@ -515,6 +547,37 @@ func (u *eventUsecase) UpdateSchedule(ctx context.Context, id string, userID str
 	}
 
 	return nil
+}
+
+func (u *eventUsecase) UpdateImages(ctx context.Context, id string, userID string, req *model.UpdateEventImagesRequest) ([]*model.EventImage, error) {
+	event, err := u.eventRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, err
+	}
+	if event.CreatedBy != userID {
+		return nil, model.ErrForbidden
+	}
+	if req == nil {
+		req = &model.UpdateEventImagesRequest{}
+	}
+	if len(req.ImageURLs) > 3 {
+		return nil, model.ErrEventImageLimitReached
+	}
+
+	tx := u.gormTransactioner.Begin(ctx)
+	images := buildEventImages(id, req.ImageURLs)
+	if err := u.eventImageRepo.ReplaceByEventIDWithTx(ctx, tx, id, images); err != nil {
+		u.gormTransactioner.Rollback(tx)
+		return nil, err
+	}
+	if err := u.gormTransactioner.Commit(tx); err != nil {
+		return nil, err
+	}
+
+	return u.eventImageRepo.FindByEventID(ctx, id)
 }
 
 func (u *eventUsecase) ListScheduleChangeLogs(ctx context.Context, eventID string, userID string) ([]*model.EventScheduleChangeLog, error) {

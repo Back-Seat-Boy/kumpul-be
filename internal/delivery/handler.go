@@ -13,8 +13,10 @@ type APIHandler struct {
 	eventOptionUsecase   model.EventOptionUsecase
 	voteUsecase          model.VoteUsecase
 	participantUsecase   model.ParticipantUsecase
+	paymentMethodUsecase model.PaymentMethodUsecase
 	paymentUsecase       model.PaymentUsecase
 	paymentRecordUsecase model.PaymentRecordUsecase
+	refundUsecase        model.RefundUsecase
 	uploadUsecase        model.UploadUsecase
 }
 
@@ -27,8 +29,10 @@ func NewAPIHandler(
 	eventOptionUsecase model.EventOptionUsecase,
 	voteUsecase model.VoteUsecase,
 	participantUsecase model.ParticipantUsecase,
+	paymentMethodUsecase model.PaymentMethodUsecase,
 	paymentUsecase model.PaymentUsecase,
 	paymentRecordUsecase model.PaymentRecordUsecase,
+	refundUsecase model.RefundUsecase,
 	uploadUsecase model.UploadUsecase,
 ) *APIHandler {
 	return &APIHandler{
@@ -40,8 +44,10 @@ func NewAPIHandler(
 		eventOptionUsecase:   eventOptionUsecase,
 		voteUsecase:          voteUsecase,
 		participantUsecase:   participantUsecase,
+		paymentMethodUsecase: paymentMethodUsecase,
 		paymentUsecase:       paymentUsecase,
 		paymentRecordUsecase: paymentRecordUsecase,
+		refundUsecase:        refundUsecase,
 		uploadUsecase:        uploadUsecase,
 	}
 }

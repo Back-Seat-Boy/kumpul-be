@@ -134,6 +134,25 @@ func (h *APIHandler) UpdateEventSchedule(c echo.Context) error {
 	return c.JSON(http.StatusOK, successResponse("Event schedule updated", nil))
 }
 
+func (h *APIHandler) UpdateEventImages(c echo.Context) error {
+	ctx := c.Request().Context()
+	id := c.Param("id")
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
+
+	var req model.UpdateEventImagesRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+
+	images, err := h.eventUsecase.UpdateImages(ctx, id, user.ID, &req)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "id": id, "req": utils.Dump(req)}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Event images updated", images))
+}
+
 func (h *APIHandler) ListEventScheduleChangeLogs(c echo.Context) error {
 	ctx := c.Request().Context()
 	id := c.Param("id")

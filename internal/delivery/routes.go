@@ -19,6 +19,11 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.GET("/users/me/", h.GetMe)
 		api.GET("/users/:id/", h.GetUserProfile)
 		api.PATCH("/users/me/", h.UpdateMe)
+		api.GET("/users/me/payment-methods/", h.ListPaymentMethods)
+		api.GET("/users/me/refunds/", h.ListMyRefunds)
+		api.POST("/users/me/payment-methods/", h.CreatePaymentMethod)
+		api.PATCH("/users/me/payment-methods/:id/", h.UpdatePaymentMethod)
+		api.DELETE("/users/me/payment-methods/:id/", h.DeletePaymentMethod)
 		api.GET("/users/:id/events/created/", h.ListUserCreatedEvents)
 		api.GET("/users/:id/events/participated/", h.ListUserParticipatedEvents)
 
@@ -32,6 +37,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.PATCH("/events/:id/status/", h.UpdateEventStatus)
 		api.PATCH("/events/:id/chosen-option/", h.UpdateEventChosenOption)
 		api.PATCH("/events/:id/schedule/", h.UpdateEventSchedule)
+		api.PATCH("/events/:id/images/", h.UpdateEventImages)
 		api.GET("/events/:id/schedule/history/", h.ListEventScheduleChangeLogs)
 
 		api.GET("/events/:event_id/options/", h.ListEventOptions)
@@ -54,6 +60,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.POST("/events/share/:token/participants/guest/", h.JoinEventAsGuestByToken)
 
 		api.GET("/events/:event_id/payment/", h.GetPayment)
+		api.GET("/events/:event_id/refunds/", h.ListEventRefunds)
 		api.POST("/events/:event_id/payment/", h.CreatePayment)
 		api.PATCH("/events/:event_id/payment/", h.UpdatePayment)
 		api.PATCH("/events/:event_id/payment/config/", h.UpdatePaymentConfig)
@@ -61,6 +68,9 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.POST("/events/:event_id/payment/charge-all/", h.ChargeAllPayments)
 		api.PATCH("/events/:event_id/payment/records/:participant_id/", h.ConfirmPayment)
 		api.POST("/events/:event_id/payment/records/:participant_id/adjust/", h.AdjustPayment)
+		api.PATCH("/refunds/:id/destination/", h.UpdateRefundDestination)
+		api.PATCH("/refunds/:id/send/", h.SendRefund)
+		api.PATCH("/refunds/:id/confirm-receipt/", h.ConfirmRefundReceipt)
 
 		api.GET("/events/:event_id/whatsapp/venue/", h.GenerateVenueWhatsAppLink)
 		api.GET("/events/:event_id/whatsapp/nudge/:user_id/", h.GenerateNudgeWhatsAppLink)

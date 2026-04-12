@@ -10,6 +10,8 @@ var (
 	ErrEventNotFound         = errors.New("event not found")
 	ErrEventOptionNotFound   = errors.New("event option not found")
 	ErrPaymentNotFound       = errors.New("payment not found")
+	ErrPaymentMethodNotFound = errors.New("payment method not found")
+	ErrRefundNotFound        = errors.New("refund not found")
 	ErrPaymentRecordNotFound = errors.New("payment record not found")
 	ErrVenueNotFound         = errors.New("venue not found")
 	ErrParticipantNotFound   = errors.New("participant not found")
@@ -45,11 +47,13 @@ var (
 	ErrEventOptionEditNotAllowed    = errors.New("event options can only be edited while event is voting")
 
 	// Event status errors
-	ErrEventNotOpenForJoining = errors.New("event is not open for joining")
-	ErrEventNotInVotingPhase  = errors.New("event is not in voting phase")
-	ErrEventNotInPaymentPhase = errors.New("event is not in payment phase")
-	ErrEventAlreadyCompleted  = errors.New("event is already completed")
-	ErrEventCancelled         = errors.New("event is cancelled")
+	ErrEventNotOpenForJoining    = errors.New("event is not open for joining")
+	ErrEventNotInVotingPhase     = errors.New("event is not in voting phase")
+	ErrEventNotInPaymentPhase    = errors.New("event is not in payment phase")
+	ErrEventAlreadyCompleted     = errors.New("event is already completed")
+	ErrEventCancelled            = errors.New("event is cancelled")
+	ErrEventImageLimitReached    = errors.New("event can only store up to 3 images")
+	ErrRefundDestinationRequired = errors.New("refund destination is required before sending")
 
 	// Database errors
 	ErrDuplicateEmail    = errors.New("email already exists")
