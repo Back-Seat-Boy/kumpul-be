@@ -37,6 +37,7 @@ type Event struct {
 	VotingDeadline *time.Time      `json:"voting_deadline"`
 	ShareToken     string          `json:"share_token" gorm:"uniqueIndex;not null"`
 	CreatedAt      time.Time       `json:"created_at"`
+	CancelledAt    *time.Time      `json:"cancelled_at,omitempty"`
 	Creator        User            `json:"creator" gorm:"foreignKey:CreatedBy"`
 	ChosenOption   *EventOption    `json:"chosen_option,omitempty" gorm:"foreignKey:ChosenOptionID"`
 	Images         []EventImage    `json:"images,omitempty" gorm:"foreignKey:EventID"`
@@ -55,6 +56,11 @@ type CreateEventRequest struct {
 
 type UpdateEventStatusRequest struct {
 	Status EventStatus `json:"status" validate:"required"`
+}
+
+type UpdateEventRequest struct {
+	Title       *string `json:"title"`
+	Description *string `json:"description"`
 }
 
 type UpdateEventChosenOptionRequest struct {
@@ -118,12 +124,13 @@ const (
 
 // ListEventsRequest holds pagination and filter parameters
 type ListEventsRequest struct {
-	Mode            PaginationMode
-	Page            int    // For page-based pagination
-	Limit           int    // Page size or cursor limit
-	Cursor          string // For cursor-based pagination (last event ID)
-	RequesterUserID string
-	Filter          ListEventsFilter
+	Mode                  PaginationMode
+	Page                  int    // For page-based pagination
+	Limit                 int    // Page size or cursor limit
+	Cursor                string // For cursor-based pagination (last event ID)
+	RequesterUserID       string
+	Filter                ListEventsFilter
+	ExcludeStaleCancelled bool
 }
 
 // ListEventsResponse is the paginated response
@@ -150,6 +157,7 @@ type EventRepository interface {
 	Create(ctx context.Context, event *Event) error
 	CreateWithTx(ctx context.Context, tx *gorm.DB, event *Event) error
 	Update(ctx context.Context, event *Event) error
+	UpdateDetails(ctx context.Context, id string, title *string, description *string) error
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateStatusWithTx(ctx context.Context, tx *gorm.DB, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error
@@ -166,6 +174,7 @@ type EventUsecase interface {
 	ListCreatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*EventSummary, error)
 	ListParticipatedByUser(ctx context.Context, userID string, requesterUserID string) ([]*EventSummary, error)
 	Create(ctx context.Context, userID string, req *CreateEventRequest) (*Event, error)
+	Update(ctx context.Context, id string, userID string, req *UpdateEventRequest) (*Event, error)
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error
 	UpdateSchedule(ctx context.Context, id string, userID string, req *UpdateEventScheduleRequest) error

@@ -14,6 +14,10 @@ import (
 func (h *APIHandler) GetPayment(c echo.Context) error {
 	ctx := c.Request().Context()
 	eventID := c.Param("event_id")
+	statusFilter, err := parsePaymentRecordStatus(c.QueryParam("status"))
+	if err != nil {
+		return err
+	}
 
 	payment, err := h.paymentUsecase.GetByEventID(ctx, eventID)
 	if err != nil {
@@ -33,9 +37,16 @@ func (h *APIHandler) GetPayment(c echo.Context) error {
 		return err
 	}
 
+	records := recordsWithSummary.Records
+	perPersonStatus := recordsWithSummary.PerPersonStatus
+	if statusFilter != "" {
+		records = filterPaymentRecordsByStatus(records, statusFilter)
+		perPersonStatus = filterParticipantPaymentStatusByStatus(perPersonStatus, statusFilter)
+	}
+
 	return c.JSON(http.StatusOK, successResponse("Payment retrieved", map[string]interface{}{
 		"payment":    payment,
-		"records":    recordsWithSummary.Records,
+		"records":    records,
 		"split_bill": splitBill,
 		"summary": map[string]interface{}{
 			"num_participants":     recordsWithSummary.NumParticipants,
@@ -45,9 +56,41 @@ func (h *APIHandler) GetPayment(c echo.Context) error {
 			"total_collected":      recordsWithSummary.TotalCollected,
 			"total_should_collect": recordsWithSummary.TotalShouldCollect,
 			"balance":              recordsWithSummary.Balance,
-			"per_person_status":    recordsWithSummary.PerPersonStatus,
+			"per_person_status":    perPersonStatus,
 		},
 	}))
+}
+
+func parsePaymentRecordStatus(raw string) (model.PaymentRecordStatus, error) {
+	status := model.PaymentRecordStatus(raw)
+	switch status {
+	case "":
+		return "", nil
+	case model.PaymentRecordStatusPending, model.PaymentRecordStatusClaimed, model.PaymentRecordStatusConfirmed:
+		return status, nil
+	default:
+		return "", echo.NewHTTPError(http.StatusBadRequest, "status must be one of: pending, claimed, confirmed")
+	}
+}
+
+func filterPaymentRecordsByStatus(records []*model.PaymentRecord, status model.PaymentRecordStatus) []*model.PaymentRecord {
+	filtered := make([]*model.PaymentRecord, 0, len(records))
+	for _, record := range records {
+		if record.Status == status {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
+}
+
+func filterParticipantPaymentStatusByStatus(statuses []model.ParticipantPaymentStatus, status model.PaymentRecordStatus) []model.ParticipantPaymentStatus {
+	filtered := make([]model.ParticipantPaymentStatus, 0, len(statuses))
+	for _, participantStatus := range statuses {
+		if participantStatus.Status == string(status) {
+			filtered = append(filtered, participantStatus)
+		}
+	}
+	return filtered
 }
 
 func (h *APIHandler) CreatePayment(c echo.Context) error {

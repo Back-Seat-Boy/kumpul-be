@@ -73,6 +73,13 @@ func applyEventVisibilityForRequester(query *gorm.DB, requesterUserID string) *g
 	)
 }
 
+func applyExcludeStaleCancelled(query *gorm.DB) *gorm.DB {
+	return query.Where(
+		"(events.status <> ? OR COALESCE(events.cancelled_at, events.created_at) > NOW() - INTERVAL '1 day')",
+		model.EventStatusCancelled,
+	)
+}
+
 func (r *eventRepo) FindByID(ctx context.Context, id string) (*model.Event, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
@@ -213,6 +220,9 @@ func (r *eventRepo) ListPaginated(ctx context.Context, req *model.ListEventsRequ
 	query := preloadEventImages(r.db.WithContext(ctx).Model(&model.Event{}).Preload("Creator"))
 	query = applyEventListScheduleJoins(query)
 	query = applyEventVisibilityForRequester(query, req.RequesterUserID)
+	if req.ExcludeStaleCancelled {
+		query = applyExcludeStaleCancelled(query)
+	}
 	if req.Filter.Search != "" {
 		query = query.Where("events.title ILIKE ?", "%"+req.Filter.Search+"%")
 	}
@@ -515,8 +525,36 @@ func (r *eventRepo) Update(ctx context.Context, event *model.Event) error {
 	return nil
 }
 
+func (r *eventRepo) UpdateDetails(ctx context.Context, id string, title *string, description *string) error {
+	updates := map[string]interface{}{}
+	if title != nil {
+		updates["title"] = *title
+	}
+	if description != nil {
+		updates["description"] = *description
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+
+	if err := r.db.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":     utils.DumpIncomingContext(ctx),
+			"id":      id,
+			"updates": updates,
+		}).Error(err)
+		return fmt.Errorf("failed to update event details: %w", err)
+	}
+	return nil
+}
+
 func (r *eventRepo) UpdateStatus(ctx context.Context, id string, status model.EventStatus) error {
-	if err := r.db.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+	updates := map[string]interface{}{"status": status}
+	if status == model.EventStatusCancelled {
+		updates["cancelled_at"] = gorm.Expr("COALESCE(cancelled_at, ?)", time.Now())
+	}
+
+	if err := r.db.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		log.WithFields(log.Fields{
 			"ctx":    utils.DumpIncomingContext(ctx),
 			"id":     id,
@@ -528,7 +566,12 @@ func (r *eventRepo) UpdateStatus(ctx context.Context, id string, status model.Ev
 }
 
 func (r *eventRepo) UpdateStatusWithTx(ctx context.Context, tx *gorm.DB, id string, status model.EventStatus) error {
-	if err := tx.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+	updates := map[string]interface{}{"status": status}
+	if status == model.EventStatusCancelled {
+		updates["cancelled_at"] = gorm.Expr("COALESCE(cancelled_at, ?)", time.Now())
+	}
+
+	if err := tx.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		log.WithFields(log.Fields{
 			"ctx":    utils.DumpIncomingContext(ctx),
 			"id":     id,

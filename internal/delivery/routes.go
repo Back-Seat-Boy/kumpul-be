@@ -34,6 +34,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 
 		api.GET("/events/", h.ListEvents)
 		api.POST("/events/", h.CreateEvent)
+		api.PATCH("/events/:id/", h.UpdateEvent)
 		api.PATCH("/events/:id/status/", h.UpdateEventStatus)
 		api.PATCH("/events/:id/chosen-option/", h.UpdateEventChosenOption)
 		api.PATCH("/events/:id/schedule/", h.UpdateEventSchedule)

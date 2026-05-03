@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,6 +70,10 @@ func (u *eventUsecase) ListParticipatedByUser(ctx context.Context, userID string
 }
 
 func (u *eventUsecase) ListForDashboard(ctx context.Context, req *model.ListEventsRequest) (*model.ListEventsResponse, error) {
+	if req == nil {
+		req = &model.ListEventsRequest{}
+	}
+	req.ExcludeStaleCancelled = true
 	return u.listEventsWithSummaries(ctx, req)
 }
 
@@ -77,6 +82,7 @@ func (u *eventUsecase) ListPublic(ctx context.Context, req *model.ListEventsRequ
 		req = &model.ListEventsRequest{}
 	}
 	req.Filter.Visibility = model.EventVisibilityPublic
+	req.ExcludeStaleCancelled = true
 	return u.listEventsWithSummaries(ctx, req)
 }
 
@@ -376,6 +382,53 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 		return nil, err
 	}
 
+	return event, nil
+}
+
+func (u *eventUsecase) Update(ctx context.Context, id string, userID string, req *model.UpdateEventRequest) (*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"id":      id,
+		"userID":  userID,
+		"req":     utils.Dump(req),
+	})
+
+	if req == nil || (req.Title == nil && req.Description == nil) {
+		return nil, model.NewAppError(nil, 400, "title or description is required")
+	}
+
+	event, err := u.eventRepo.FindByID(ctx, id)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, err
+	}
+	if event.CreatedBy != userID {
+		return nil, model.ErrForbidden
+	}
+
+	var title *string
+	if req.Title != nil {
+		trimmedTitle := strings.TrimSpace(*req.Title)
+		if trimmedTitle == "" {
+			return nil, model.NewAppError(nil, 400, "title is required")
+		}
+		title = &trimmedTitle
+	}
+
+	if err := u.eventRepo.UpdateDetails(ctx, id, title, req.Description); err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+
+	if title != nil {
+		event.Title = *title
+	}
+	if req.Description != nil {
+		event.Description = *req.Description
+	}
 	return event, nil
 }
 
