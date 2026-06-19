@@ -549,7 +549,7 @@ func (u *eventUsecase) UpdateSchedule(ctx context.Context, id string, userID str
 	if event.CreatedBy != userID {
 		return model.ErrForbidden
 	}
-	if event.Status != model.EventStatusConfirmed {
+	if event.Status != model.EventStatusConfirmed && event.Status != model.EventStatusOpen {
 		return model.ErrEventScheduleEditNotAllowed
 	}
 	if event.ChosenOptionID == nil || *event.ChosenOptionID == "" {
