@@ -39,6 +39,7 @@ func (u *uploadUsecase) UploadImage(ctx context.Context, req *model.UploadImageR
 	uploadResult, err := u.cld.Upload.Upload(ctx, reader, uploader.UploadParams{
 		Folder: config.CloudinaryUploadFolder(),
 	})
+	logger.Infof("upload result: %+v", uploadResult)
 	if err != nil {
 		logger.Error(err)
 		return nil, fmt.Errorf("failed to upload image: %w", err)
