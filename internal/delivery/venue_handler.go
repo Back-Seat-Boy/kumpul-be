@@ -101,7 +101,7 @@ func (h *APIHandler) DeleteVenue(c echo.Context) error {
 
 	if err := h.venueUsecase.Delete(ctx, id); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "id": id}).Error()
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.JSON(http.StatusOK, successResponse("Venue deleted", nil))

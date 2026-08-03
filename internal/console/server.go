@@ -83,7 +83,7 @@ func run(_ *cobra.Command, _ []string) {
 
 	sessionUC := usecase.NewSessionUsecase(sessionRepo)
 	userUC := usecase.NewUserUsecase(userRepo)
-	venueUC := usecase.NewVenueUsecase(venueRepo)
+	venueUC := usecase.NewVenueUsecase(venueRepo, eventOptionRepo)
 	eventUC := usecase.NewEventUsecase(eventRepo, gormTransactioner, eventOptionRepo, eventImageRepo, eventScheduleChangeLogRepo, participantRepo, paymentRepo, paymentRecordRepo, venueRepo)
 	eventOptionUC := usecase.NewEventOptionUsecase(eventOptionRepo, eventRepo, venueRepo, eventOptionChangeLogRepo, gormTransactioner)
 	voteUC := usecase.NewVoteUsecase(voteRepo, eventRepo, eventOptionRepo)

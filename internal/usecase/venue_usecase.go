@@ -10,11 +10,12 @@ import (
 )
 
 type venueUsecase struct {
-	venueRepo model.VenueRepository
+	venueRepo  model.VenueRepository
+	optionRepo model.EventOptionRepository
 }
 
-func NewVenueUsecase(venueRepo model.VenueRepository) model.VenueUsecase {
-	return &venueUsecase{venueRepo: venueRepo}
+func NewVenueUsecase(venueRepo model.VenueRepository, optionRepo model.EventOptionRepository) model.VenueUsecase {
+	return &venueUsecase{venueRepo: venueRepo, optionRepo: optionRepo}
 }
 
 func (u *venueUsecase) GetByID(ctx context.Context, id string) (*model.Venue, error) {
@@ -126,5 +127,12 @@ func (u *venueUsecase) Update(ctx context.Context, id string, req *model.UpdateV
 }
 
 func (u *venueUsecase) Delete(ctx context.Context, id string) error {
+	count, err := u.optionRepo.CountByVenueID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return model.ErrVenueInUse
+	}
 	return u.venueRepo.Delete(ctx, id)
 }

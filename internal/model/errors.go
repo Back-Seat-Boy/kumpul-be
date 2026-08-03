@@ -14,6 +14,7 @@ var (
 	ErrRefundNotFound        = errors.New("refund not found")
 	ErrPaymentRecordNotFound = errors.New("payment record not found")
 	ErrVenueNotFound         = errors.New("venue not found")
+	ErrVenueInUse            = errors.New("venue is in use by one or more event options")
 	ErrParticipantNotFound   = errors.New("participant not found")
 	ErrVoteNotFound          = errors.New("vote not found")
 

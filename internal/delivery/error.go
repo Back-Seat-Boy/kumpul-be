@@ -69,9 +69,9 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 		errors.Is(err, model.ErrEventOptionEditNotAllowed):
 		code = http.StatusBadRequest
 		message = err.Error()
-	case errors.Is(err, model.ErrDuplicateEmail) || errors.Is(err, model.ErrDuplicateGoogleID):
+	case errors.Is(err, model.ErrDuplicateEmail) || errors.Is(err, model.ErrDuplicateGoogleID) || errors.Is(err, model.ErrVenueInUse):
 		code = http.StatusConflict
-		message = "Resource already exists"
+		message = err.Error()
 	}
 
 	// Don't override message if already set from HTTPError or AppError

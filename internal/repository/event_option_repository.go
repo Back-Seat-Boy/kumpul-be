@@ -179,6 +179,14 @@ func (r *eventOptionRepo) UpdateWithTx(ctx context.Context, tx *gorm.DB, optionI
 	return nil
 }
 
+func (r *eventOptionRepo) CountByVenueID(ctx context.Context, venueID string) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.EventOption{}).Where("venue_id = ?", venueID).Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count event options by venue: %w", err)
+	}
+	return count, nil
+}
+
 func (r *eventOptionRepo) Delete(ctx context.Context, id string) error {
 	if err := r.db.WithContext(ctx).Delete(&model.EventOption{}, "id = ?", id).Error; err != nil {
 		log.WithFields(log.Fields{

@@ -58,6 +58,7 @@ type EventOptionRepository interface {
 	UpdateScheduleWithTx(ctx context.Context, tx *gorm.DB, optionID string, venueID string, date time.Time, startTime string, endTime string) error
 	UpdateWithTx(ctx context.Context, tx *gorm.DB, optionID string, venueID string, date time.Time, startTime string, endTime string) error
 	Delete(ctx context.Context, id string) error
+	CountByVenueID(ctx context.Context, venueID string) (int64, error)
 }
 
 type EventOptionUsecase interface {
