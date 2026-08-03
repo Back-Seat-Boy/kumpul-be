@@ -63,14 +63,14 @@ func (r *venueRepo) ListAll(ctx context.Context) ([]*model.Venue, error) {
 }
 
 // ListPaginated returns paginated venues with filtering done at SQL level
-func (r *venueRepo) ListPaginated(ctx context.Context, req *model.ListVenuesRequest) ([]*model.Venue, int64, error) {
+func (r *venueRepo) ListPaginated(ctx context.Context, userID string, req *model.ListVenuesRequest) ([]*model.Venue, int64, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
 		"req":     req,
 	})
 
 	// Build base query with filters
-	query := r.db.WithContext(ctx).Model(&model.Venue{}).Preload("Creator")
+	query := r.db.WithContext(ctx).Model(&model.Venue{}).Preload("Creator").Where("created_by = ?", userID)
 
 	// Apply search filter (name or address ILIKE)
 	if req.Filter.Search != "" {

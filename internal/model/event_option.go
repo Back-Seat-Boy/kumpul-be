@@ -65,7 +65,7 @@ type EventOptionUsecase interface {
 	ListByEvent(ctx context.Context, eventID string, userID *string) ([]*EventOptionWithVoteCount, error)
 	ListByEventWithVoters(ctx context.Context, eventID string, userID *string) ([]*EventOptionWithVoteCount, error)
 	ListChangeLogs(ctx context.Context, eventID string, userID string) ([]*EventOptionChangeLog, error)
-	Create(ctx context.Context, eventID string, req *CreateEventOptionRequest) (*EventOption, error)
+	Create(ctx context.Context, eventID string, userID string, req *CreateEventOptionRequest) (*EventOption, error)
 	Update(ctx context.Context, eventID string, optionID string, userID string, req *UpdateEventOptionRequest) error
 	Delete(ctx context.Context, id string) error
 }

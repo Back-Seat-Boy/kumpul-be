@@ -25,7 +25,7 @@ func (u *venueUsecase) ListAll(ctx context.Context) ([]*model.Venue, error) {
 	return u.venueRepo.ListAll(ctx)
 }
 
-func (u *venueUsecase) ListPaginated(ctx context.Context, req *model.ListVenuesRequest) (*model.ListVenuesResponse, error) {
+func (u *venueUsecase) ListPaginated(ctx context.Context, userID string, req *model.ListVenuesRequest) (*model.ListVenuesResponse, error) {
 	if req.Limit <= 0 {
 		req.Limit = 10
 	}
@@ -36,7 +36,7 @@ func (u *venueUsecase) ListPaginated(ctx context.Context, req *model.ListVenuesR
 		req.Page = 1
 	}
 
-	venues, total, err := u.venueRepo.ListPaginated(ctx, req)
+	venues, total, err := u.venueRepo.ListPaginated(ctx, userID, req)
 	if err != nil {
 		return nil, err
 	}

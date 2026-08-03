@@ -66,7 +66,7 @@ type VenueRepository interface {
 	FindByCreatedBy(ctx context.Context, createdBy string) ([]*Venue, error)
 	ListAll(ctx context.Context) ([]*Venue, error)
 	// ListPaginated returns paginated venues with total count (filtering and pagination done in SQL)
-	ListPaginated(ctx context.Context, req *ListVenuesRequest) ([]*Venue, int64, error)
+	ListPaginated(ctx context.Context, userID string, req *ListVenuesRequest) ([]*Venue, int64, error)
 	Create(ctx context.Context, venue *Venue) error
 	Update(ctx context.Context, venue *Venue) error
 	Delete(ctx context.Context, id string) error
@@ -75,7 +75,7 @@ type VenueRepository interface {
 type VenueUsecase interface {
 	GetByID(ctx context.Context, id string) (*Venue, error)
 	ListAll(ctx context.Context) ([]*Venue, error)
-	ListPaginated(ctx context.Context, req *ListVenuesRequest) (*ListVenuesResponse, error)
+	ListPaginated(ctx context.Context, userID string, req *ListVenuesRequest) (*ListVenuesResponse, error)
 	Create(ctx context.Context, userID string, req *CreateVenueRequest) (*Venue, error)
 	Update(ctx context.Context, id string, req *UpdateVenueRequest) (*Venue, error)
 	Delete(ctx context.Context, id string) error

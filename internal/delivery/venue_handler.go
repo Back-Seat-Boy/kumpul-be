@@ -12,6 +12,7 @@ import (
 
 func (h *APIHandler) ListVenues(c echo.Context) error {
 	ctx := c.Request().Context()
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
 
 	// Parse pagination parameters
 	req := &model.ListVenuesRequest{
@@ -43,7 +44,7 @@ func (h *APIHandler) ListVenues(c echo.Context) error {
 	// Parse filters
 	req.Filter.Search = c.QueryParam("search")
 
-	response, err := h.venueUsecase.ListPaginated(ctx, req)
+	response, err := h.venueUsecase.ListPaginated(ctx, user.ID, req)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx)}).Error()
 		return err

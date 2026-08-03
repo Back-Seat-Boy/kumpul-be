@@ -76,7 +76,15 @@ func (u *eventOptionUsecase) ListChangeLogs(ctx context.Context, eventID string,
 	return u.changeLogRepo.FindByEventID(ctx, eventID)
 }
 
-func (u *eventOptionUsecase) Create(ctx context.Context, eventID string, req *model.CreateEventOptionRequest) (*model.EventOption, error) {
+func (u *eventOptionUsecase) Create(ctx context.Context, eventID string, userID string, req *model.CreateEventOptionRequest) (*model.EventOption, error) {
+	venue, err := u.venueRepo.FindByID(ctx, req.VenueID)
+	if err != nil {
+		return nil, err
+	}
+	if venue.CreatedBy != userID {
+		return nil, model.ErrForbidden
+	}
+
 	option := &model.EventOption{
 		ID:        uuid.New().String(),
 		EventID:   eventID,
@@ -116,8 +124,10 @@ func (u *eventOptionUsecase) Update(ctx context.Context, eventID string, optionI
 		return model.ErrEventOptionNotFound
 	}
 
-	if _, err := u.venueRepo.FindByID(ctx, req.VenueID); err != nil {
+	if venue, err := u.venueRepo.FindByID(ctx, req.VenueID); err != nil {
 		return err
+	} else if venue.CreatedBy != userID {
+		return model.ErrForbidden
 	}
 
 	tx := u.gormTransactioner.Begin(ctx)

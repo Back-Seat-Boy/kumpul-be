@@ -55,6 +55,7 @@ func (h *APIHandler) ListEventOptionChangeLogs(c echo.Context) error {
 func (h *APIHandler) CreateEventOption(c echo.Context) error {
 	ctx := c.Request().Context()
 	eventID := c.Param("event_id")
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
 
 	var req model.CreateEventOptionRequest
 	if err := c.Bind(&req); err != nil {
@@ -64,7 +65,7 @@ func (h *APIHandler) CreateEventOption(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	option, err := h.eventOptionUsecase.Create(ctx, eventID, &req)
+	option, err := h.eventOptionUsecase.Create(ctx, eventID, user.ID, &req)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "req": utils.Dump(req)}).Error()
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
