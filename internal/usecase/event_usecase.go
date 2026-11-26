@@ -365,17 +365,8 @@ func (u *eventUsecase) Create(ctx context.Context, userID string, req *model.Cre
 		}
 	}
 
-	participant := &model.Participant{
-		ID:       uuid.New().String(),
-		EventID:  event.ID,
-		UserID:   null.StringFrom(userID),
-		JoinedAt: time.Now(),
-	}
-	if err := u.participantRepo.CreateWithTx(ctx, tx, participant); err != nil {
-		logger.Error(err)
-		tx.Rollback()
-		return nil, err
-	}
+	// The organizer is no longer added as a participant by default;
+	// they join the same way as everyone else (Join button or voting).
 
 	if err := tx.Commit().Error; err != nil {
 		logger.Error(err)
