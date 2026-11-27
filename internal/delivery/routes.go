@@ -60,6 +60,14 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 		api.POST("/events/:event_id/participants/guest/", h.JoinEventAsGuest)
 		api.POST("/events/share/:token/participants/guest/", h.JoinEventAsGuestByToken)
 
+		api.GET("/events/:event_id/groups/", h.ListParticipantGroups)
+		api.POST("/events/:event_id/groups/", h.CreateParticipantGroup)
+		api.PATCH("/events/:event_id/groups/:group_id/", h.UpdateParticipantGroup)
+		api.DELETE("/events/:event_id/groups/:group_id/", h.DeleteParticipantGroup)
+		api.PATCH("/events/:event_id/group-settings/", h.UpdateParticipantGroupSettings)
+		api.PATCH("/events/:event_id/participants/me/group/", h.ChangeOwnParticipantGroup)
+		api.PATCH("/events/:event_id/participants/:participant_id/group/", h.AssignParticipantGroup)
+
 		api.GET("/events/:event_id/payment/", h.GetPayment)
 		api.GET("/events/:event_id/refunds/", h.ListEventRefunds)
 		api.POST("/events/:event_id/payment/", h.CreatePayment)
@@ -84,6 +92,7 @@ func (h *APIHandler) Routes(e *echo.Echo) {
 	e.GET("/events/:token/options/", h.ListEventOptions)
 	e.GET("/events/:token/options/with-voters/", h.ListEventOptionsWithVoters)
 	e.GET("/events/:token/participants/", h.ListParticipants)
+	e.GET("/events/:token/groups/", h.ListParticipantGroups)
 
 	e.GET("/", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, successResponse("Welcome to kumpul-be API", map[string]string{

@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
@@ -18,10 +20,11 @@ type participantUsecase struct {
 	refundUsecase     model.RefundUsecase
 	splitBillRepo     model.SplitBillRepository
 	eventRepo         model.EventRepository
+	groupRepo         model.ParticipantGroupRepository
 	gormTransactioner model.GormTransactioner
 }
 
-func NewParticipantUsecase(participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, refundUsecase model.RefundUsecase, splitBillRepo model.SplitBillRepository, eventRepo model.EventRepository, gormTransactioner model.GormTransactioner) model.ParticipantUsecase {
+func NewParticipantUsecase(participantRepo model.ParticipantRepository, paymentRepo model.PaymentRepository, paymentRecordRepo model.PaymentRecordRepository, refundUsecase model.RefundUsecase, splitBillRepo model.SplitBillRepository, eventRepo model.EventRepository, groupRepo model.ParticipantGroupRepository, gormTransactioner model.GormTransactioner) model.ParticipantUsecase {
 	return &participantUsecase{
 		participantRepo:   participantRepo,
 		paymentRepo:       paymentRepo,
@@ -29,6 +32,7 @@ func NewParticipantUsecase(participantRepo model.ParticipantRepository, paymentR
 		refundUsecase:     refundUsecase,
 		splitBillRepo:     splitBillRepo,
 		eventRepo:         eventRepo,
+		groupRepo:         groupRepo,
 		gormTransactioner: gormTransactioner,
 	}
 }
@@ -78,14 +82,14 @@ func (u *participantUsecase) ListByEvent(ctx context.Context, req *model.ListPar
 	return response, nil
 }
 
-func (u *participantUsecase) Join(ctx context.Context, eventID string, userID string, viaShareLink bool) error {
+func (u *participantUsecase) Join(ctx context.Context, eventID string, userID string, groupID *string, viaShareLink bool) error {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
 		"eventID": eventID,
 		"userID":  userID,
 	})
 
-	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
+	event, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -96,10 +100,17 @@ func (u *participantUsecase) Join(ctx context.Context, eventID string, userID st
 		return model.ErrAlreadyJoined
 	}
 
+	resolvedGroupID, err := u.resolveJoinGroup(ctx, event, userID, groupID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
 	participant := &model.Participant{
 		ID:       uuid.New().String(),
 		EventID:  eventID,
 		UserID:   null.StringFrom(userID),
+		GroupID:  resolvedGroupID,
 		JoinedAt: time.Now(),
 	}
 
@@ -575,7 +586,7 @@ func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID st
 	})
 
 	// Check event status - can join when status is "open" or "payment_open"
-	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
+	event, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -586,11 +597,18 @@ func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID st
 		return model.ErrAlreadyJoined
 	}
 
+	resolvedGroupID, err := u.resolveJoinGroup(ctx, event, userID, req.GroupID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
 	participant := &model.Participant{
 		ID:        uuid.New().String(),
 		EventID:   eventID,
 		GuestName: req.GuestName,
 		AddedBy:   null.StringFrom(userID),
+		GroupID:   resolvedGroupID,
 		JoinedAt:  time.Now(),
 	}
 
@@ -606,6 +624,42 @@ func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID st
 	}
 
 	return nil
+}
+
+func (u *participantUsecase) resolveJoinGroup(ctx context.Context, event *model.Event, requesterID string, groupID *string) (null.String, error) {
+	groups, err := u.groupRepo.ListByEventID(ctx, event.ID)
+	if err != nil {
+		return null.String{}, err
+	}
+
+	requestedGroupID := ""
+	if groupID != nil {
+		requestedGroupID = strings.TrimSpace(*groupID)
+	}
+
+	if requestedGroupID == "" {
+		if event.AllowGroupSelfSelect && len(groups) > 0 {
+			return null.String{}, model.NewAppError(nil, http.StatusBadRequest, "please choose a group")
+		}
+		return null.String{}, nil
+	}
+
+	var matchedGroup *model.ParticipantGroup
+	for _, group := range groups {
+		if group.ID == requestedGroupID {
+			matchedGroup = group
+			break
+		}
+	}
+	if matchedGroup == nil {
+		return null.String{}, model.ErrParticipantGroupNotFound
+	}
+
+	if !event.AllowGroupSelfSelect && requesterID != event.CreatedBy {
+		return null.String{}, model.NewAppError(nil, http.StatusBadRequest, "group selection is not enabled for this event")
+	}
+
+	return null.StringFrom(matchedGroup.ID), nil
 }
 
 func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eventID string, viaShareLink bool) (*model.Event, error) {

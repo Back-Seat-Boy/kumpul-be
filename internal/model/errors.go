@@ -5,18 +5,19 @@ import "errors"
 // Common errors
 var (
 	// Not found errors
-	ErrUserNotFound          = errors.New("user not found")
-	ErrSessionNotFound       = errors.New("session not found")
-	ErrEventNotFound         = errors.New("event not found")
-	ErrEventOptionNotFound   = errors.New("event option not found")
-	ErrPaymentNotFound       = errors.New("payment not found")
-	ErrPaymentMethodNotFound = errors.New("payment method not found")
-	ErrRefundNotFound        = errors.New("refund not found")
-	ErrPaymentRecordNotFound = errors.New("payment record not found")
-	ErrVenueNotFound         = errors.New("venue not found")
-	ErrVenueInUse            = errors.New("venue is in use by one or more event options")
-	ErrParticipantNotFound   = errors.New("participant not found")
-	ErrVoteNotFound          = errors.New("vote not found")
+	ErrUserNotFound             = errors.New("user not found")
+	ErrSessionNotFound          = errors.New("session not found")
+	ErrEventNotFound            = errors.New("event not found")
+	ErrEventOptionNotFound      = errors.New("event option not found")
+	ErrPaymentNotFound          = errors.New("payment not found")
+	ErrPaymentMethodNotFound    = errors.New("payment method not found")
+	ErrRefundNotFound           = errors.New("refund not found")
+	ErrPaymentRecordNotFound    = errors.New("payment record not found")
+	ErrVenueNotFound            = errors.New("venue not found")
+	ErrVenueInUse               = errors.New("venue is in use by one or more event options")
+	ErrParticipantNotFound      = errors.New("participant not found")
+	ErrParticipantGroupNotFound = errors.New("participant group not found")
+	ErrVoteNotFound             = errors.New("vote not found")
 
 	// Validation errors
 	ErrInvalidEmail    = errors.New("invalid email")
@@ -57,8 +58,9 @@ var (
 	ErrRefundDestinationRequired = errors.New("refund destination is required before sending")
 
 	// Database errors
-	ErrDuplicateEmail    = errors.New("email already exists")
-	ErrDuplicateGoogleID = errors.New("google account already linked")
+	ErrDuplicateEmail            = errors.New("email already exists")
+	ErrDuplicateGoogleID         = errors.New("google account already linked")
+	ErrParticipantGroupNameTaken = errors.New("participant group name already exists")
 )
 
 // AppError represents an application error with HTTP status code

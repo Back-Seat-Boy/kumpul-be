@@ -57,6 +57,7 @@ func parseListParticipantsRequest(c echo.Context) *model.ListParticipantsRequest
 
 	req.Cursor = c.QueryParam("cursor")
 	req.Filter.Search = c.QueryParam("search")
+	req.Filter.GroupID = c.QueryParam("group_id")
 	if sortOrder := c.QueryParam("sort_order"); sortOrder != "" {
 		req.SortOrder = model.ParticipantSortOrder(sortOrder)
 	}
@@ -69,7 +70,14 @@ func (h *APIHandler) JoinEvent(c echo.Context) error {
 	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
 	eventID := c.Param("event_id")
 
-	if err := h.participantUsecase.Join(ctx, eventID, user.ID, false); err != nil {
+	var req model.JoinEventRequest
+	if c.Request().ContentLength != 0 {
+		if err := c.Bind(&req); err != nil {
+			return err
+		}
+	}
+
+	if err := h.participantUsecase.Join(ctx, eventID, user.ID, req.GroupID, false); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": eventID, "userID": user.ID}).Error()
 		return err
 	}
@@ -82,13 +90,20 @@ func (h *APIHandler) JoinEventByToken(c echo.Context) error {
 	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
 	token := c.Param("token")
 
+	var req model.JoinEventRequest
+	if c.Request().ContentLength != 0 {
+		if err := c.Bind(&req); err != nil {
+			return err
+		}
+	}
+
 	event, err := h.eventUsecase.GetByShareToken(ctx, token)
 	if err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "token": token, "userID": user.ID}).Error()
 		return err
 	}
 
-	if err := h.participantUsecase.Join(ctx, event.ID, user.ID, true); err != nil {
+	if err := h.participantUsecase.Join(ctx, event.ID, user.ID, req.GroupID, true); err != nil {
 		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "eventID": event.ID, "token": token, "userID": user.ID}).Error()
 		return err
 	}

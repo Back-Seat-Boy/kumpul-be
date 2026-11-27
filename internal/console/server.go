@@ -73,6 +73,7 @@ func run(_ *cobra.Command, _ []string) {
 	eventScheduleChangeLogRepo := repository.NewEventScheduleChangeLogRepository(db)
 	voteRepo := repository.NewVoteRepository(db)
 	participantRepo := repository.NewParticipantRepository(db)
+	participantGroupRepo := repository.NewParticipantGroupRepository(db)
 	paymentRepo := repository.NewPaymentRepository(db)
 	paymentMethodRepo := repository.NewPaymentMethodRepository(db)
 	paymentRecordRepo := repository.NewPaymentRecordRepository(db)
@@ -88,7 +89,8 @@ func run(_ *cobra.Command, _ []string) {
 	eventOptionUC := usecase.NewEventOptionUsecase(eventOptionRepo, eventRepo, venueRepo, eventOptionChangeLogRepo, gormTransactioner)
 	voteUC := usecase.NewVoteUsecase(voteRepo, eventRepo, eventOptionRepo)
 	refundUC := usecase.NewRefundUsecase(refundRepo, eventRepo, paymentMethodRepo)
-	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, refundUC, splitBillRepo, eventRepo, gormTransactioner)
+	participantUC := usecase.NewParticipantUsecase(participantRepo, paymentRepo, paymentRecordRepo, refundUC, splitBillRepo, eventRepo, participantGroupRepo, gormTransactioner)
+	participantGroupUC := usecase.NewParticipantGroupUsecase(participantGroupRepo, participantRepo, eventRepo)
 	paymentMethodUC := usecase.NewPaymentMethodUsecase(paymentMethodRepo)
 	paymentRecordUC := usecase.NewPaymentRecordUsecase(paymentRecordRepo, paymentClaimRepo, paymentRepo, eventRepo, participantRepo)
 	paymentUC := usecase.NewPaymentUsecase(paymentRepo, paymentMethodRepo, paymentRecordRepo, splitBillRepo, participantRepo, eventRepo, paymentRecordUC, gormTransactioner)
@@ -111,6 +113,7 @@ func run(_ *cobra.Command, _ []string) {
 		eventOptionUC,
 		voteUC,
 		participantUC,
+		participantGroupUC,
 		paymentMethodUC,
 		paymentUC,
 		paymentRecordUC,

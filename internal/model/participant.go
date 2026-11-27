@@ -16,6 +16,7 @@ type Participant struct {
 	IsGuest   bool        `json:"is_guest" gorm:"-"`
 	JoinedAt  time.Time   `json:"joined_at"`
 	AddedBy   null.String `json:"added_by" gorm:"type:uuid"`
+	GroupID   null.String `json:"group_id" gorm:"type:uuid"`
 	User      User        `json:"user,omitempty" gorm:"foreignKey:UserID"`
 }
 
@@ -43,6 +44,7 @@ type ParticipantRepository interface {
 	Create(ctx context.Context, participant *Participant) error
 	CreateWithTx(ctx context.Context, tx *gorm.DB, participant *Participant) error
 	Delete(ctx context.Context, id string) error
+	UpdateGroupID(ctx context.Context, participantID string, groupID null.String) error
 	CountByEventID(ctx context.Context, eventID string) (int64, error)
 }
 
@@ -83,11 +85,17 @@ type RemoveParticipantResult struct {
 }
 
 type JoinAsGuestRequest struct {
-	GuestName string `json:"guest_name" validate:"required"`
+	GuestName string  `json:"guest_name" validate:"required"`
+	GroupID   *string `json:"group_id"`
+}
+
+type JoinEventRequest struct {
+	GroupID *string `json:"group_id"`
 }
 
 type ListParticipantsFilter struct {
-	Search string
+	Search  string
+	GroupID string
 }
 
 type ListParticipantsRequest struct {
@@ -109,7 +117,7 @@ type ListParticipantsResponse struct {
 
 type ParticipantUsecase interface {
 	ListByEvent(ctx context.Context, req *ListParticipantsRequest) (*ListParticipantsResponse, error)
-	Join(ctx context.Context, eventID string, userID string, viaShareLink bool) error
+	Join(ctx context.Context, eventID string, userID string, groupID *string, viaShareLink bool) error
 	JoinAsGuest(ctx context.Context, userID, eventID string, req *JoinAsGuestRequest, viaShareLink bool) error
 	Leave(ctx context.Context, eventID string, userID string) error
 	PreviewRemoveParticipant(ctx context.Context, eventID string, participantID string, requesterUserID string) (*RemoveParticipantResult, error)

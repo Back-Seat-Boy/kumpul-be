@@ -48,6 +48,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 		errors.Is(err, model.ErrEventNotFound) || errors.Is(err, model.ErrEventOptionNotFound) ||
 		errors.Is(err, model.ErrPaymentNotFound) || errors.Is(err, model.ErrPaymentRecordNotFound) ||
 		errors.Is(err, model.ErrVenueNotFound) || errors.Is(err, model.ErrParticipantNotFound) ||
+		errors.Is(err, model.ErrParticipantGroupNotFound) ||
 		errors.Is(err, model.ErrVoteNotFound):
 		code = http.StatusNotFound
 		message = "Resource not found"
@@ -66,10 +67,12 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 		errors.Is(err, model.ErrParticipantCapReached) || errors.Is(err, model.ErrSplitBillParticipantAssigned) ||
 		errors.Is(err, model.ErrSplitBillManualAdjustBlocked) || errors.Is(err, model.ErrSplitBillChargeAllBlocked) ||
 		errors.Is(err, model.ErrSkipVotingRequiresOneOption) || errors.Is(err, model.ErrEventScheduleEditNotAllowed) ||
-		errors.Is(err, model.ErrEventOptionEditNotAllowed):
+		errors.Is(err, model.ErrEventOptionEditNotAllowed) ||
+		errors.Is(err, model.ErrEventAlreadyCompleted) || errors.Is(err, model.ErrAlreadyJoined):
 		code = http.StatusBadRequest
 		message = err.Error()
-	case errors.Is(err, model.ErrDuplicateEmail) || errors.Is(err, model.ErrDuplicateGoogleID) || errors.Is(err, model.ErrVenueInUse):
+	case errors.Is(err, model.ErrDuplicateEmail) || errors.Is(err, model.ErrDuplicateGoogleID) || errors.Is(err, model.ErrVenueInUse) ||
+		errors.Is(err, model.ErrParticipantGroupNameTaken):
 		code = http.StatusConflict
 		message = err.Error()
 	}

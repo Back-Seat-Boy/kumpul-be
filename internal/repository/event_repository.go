@@ -548,6 +548,18 @@ func (r *eventRepo) UpdateDetails(ctx context.Context, id string, title *string,
 	return nil
 }
 
+func (r *eventRepo) UpdateAllowGroupSelfSelect(ctx context.Context, id string, allow bool) error {
+	if err := r.db.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Update("allow_group_self_select", allow).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":   utils.DumpIncomingContext(ctx),
+			"id":    id,
+			"allow": allow,
+		}).Error(err)
+		return fmt.Errorf("failed to update event group settings: %w", err)
+	}
+	return nil
+}
+
 func (r *eventRepo) UpdateStatus(ctx context.Context, id string, status model.EventStatus) error {
 	updates := map[string]interface{}{"status": status}
 	if status == model.EventStatusCancelled {

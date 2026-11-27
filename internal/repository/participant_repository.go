@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Back-Seat-Boy/kumpul-be/internal/model"
+	"github.com/guregu/null"
 	"github.com/kumparan/go-utils"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -52,6 +53,12 @@ func (r *participantRepo) ListPaginatedByEvent(ctx context.Context, req *model.L
 
 	if req.Filter.Search != "" {
 		query = query.Where(participantDisplayNameExpr+" ILIKE ?", "%"+req.Filter.Search+"%")
+	}
+
+	if req.Filter.GroupID == "unassigned" {
+		query = query.Where("participants.group_id IS NULL")
+	} else if req.Filter.GroupID != "" {
+		query = query.Where("participants.group_id = ?", req.Filter.GroupID)
 	}
 
 	var total int64
@@ -167,6 +174,21 @@ func (r *participantRepo) Delete(ctx context.Context, id string) error {
 			"id":  id,
 		}).Error(err)
 		return fmt.Errorf("failed to delete participant: %w", err)
+	}
+	return nil
+}
+
+func (r *participantRepo) UpdateGroupID(ctx context.Context, participantID string, groupID null.String) error {
+	if err := r.db.WithContext(ctx).
+		Model(&model.Participant{}).
+		Where("id = ?", participantID).
+		Update("group_id", groupID).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":           utils.DumpIncomingContext(ctx),
+			"participantID": participantID,
+			"groupID":       groupID,
+		}).Error(err)
+		return fmt.Errorf("failed to update participant group: %w", err)
 	}
 	return nil
 }

@@ -26,21 +26,22 @@ const (
 )
 
 type Event struct {
-	ID             string          `json:"id" gorm:"primaryKey;type:uuid"`
-	CreatedBy      string          `json:"created_by" gorm:"type:uuid;not null"`
-	Title          string          `json:"title" gorm:"not null"`
-	Description    string          `json:"description"`
-	Status         EventStatus     `json:"status" gorm:"not null;default:'voting'"`
-	Visibility     EventVisibility `json:"visibility" gorm:"type:varchar(20);not null;default:'invite_only'"`
-	ChosenOptionID *string         `json:"chosen_option_id,omitempty" gorm:"type:uuid"`
-	PlayerCap      *int            `json:"player_cap"`
-	VotingDeadline *time.Time      `json:"voting_deadline"`
-	ShareToken     string          `json:"share_token" gorm:"uniqueIndex;not null"`
-	CreatedAt      time.Time       `json:"created_at"`
-	CancelledAt    *time.Time      `json:"cancelled_at,omitempty"`
-	Creator        User            `json:"creator" gorm:"foreignKey:CreatedBy"`
-	ChosenOption   *EventOption    `json:"chosen_option,omitempty" gorm:"foreignKey:ChosenOptionID"`
-	Images         []EventImage    `json:"images,omitempty" gorm:"foreignKey:EventID"`
+	ID                   string          `json:"id" gorm:"primaryKey;type:uuid"`
+	CreatedBy            string          `json:"created_by" gorm:"type:uuid;not null"`
+	Title                string          `json:"title" gorm:"not null"`
+	Description          string          `json:"description"`
+	Status               EventStatus     `json:"status" gorm:"not null;default:'voting'"`
+	Visibility           EventVisibility `json:"visibility" gorm:"type:varchar(20);not null;default:'invite_only'"`
+	ChosenOptionID       *string         `json:"chosen_option_id,omitempty" gorm:"type:uuid"`
+	PlayerCap            *int            `json:"player_cap"`
+	VotingDeadline       *time.Time      `json:"voting_deadline"`
+	ShareToken           string          `json:"share_token" gorm:"uniqueIndex;not null"`
+	CreatedAt            time.Time       `json:"created_at"`
+	CancelledAt          *time.Time      `json:"cancelled_at,omitempty"`
+	AllowGroupSelfSelect bool            `json:"allow_group_self_select" gorm:"not null;default:false"`
+	Creator              User            `json:"creator" gorm:"foreignKey:CreatedBy"`
+	ChosenOption         *EventOption    `json:"chosen_option,omitempty" gorm:"foreignKey:ChosenOptionID"`
+	Images               []EventImage    `json:"images,omitempty" gorm:"foreignKey:EventID"`
 }
 
 type CreateEventRequest struct {
@@ -158,6 +159,7 @@ type EventRepository interface {
 	CreateWithTx(ctx context.Context, tx *gorm.DB, event *Event) error
 	Update(ctx context.Context, event *Event) error
 	UpdateDetails(ctx context.Context, id string, title *string, description *string) error
+	UpdateAllowGroupSelfSelect(ctx context.Context, id string, allow bool) error
 	UpdateStatus(ctx context.Context, id string, status EventStatus) error
 	UpdateStatusWithTx(ctx context.Context, tx *gorm.DB, id string, status EventStatus) error
 	UpdateChosenOption(ctx context.Context, id string, optionID string) error
