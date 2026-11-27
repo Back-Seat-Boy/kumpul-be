@@ -66,7 +66,8 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 		errors.Is(err, model.ErrParticipantCapReached) || errors.Is(err, model.ErrSplitBillParticipantAssigned) ||
 		errors.Is(err, model.ErrSplitBillManualAdjustBlocked) || errors.Is(err, model.ErrSplitBillChargeAllBlocked) ||
 		errors.Is(err, model.ErrSkipVotingRequiresOneOption) || errors.Is(err, model.ErrEventScheduleEditNotAllowed) ||
-		errors.Is(err, model.ErrEventOptionEditNotAllowed):
+		errors.Is(err, model.ErrEventOptionEditNotAllowed) || errors.Is(err, model.ErrRegistrationClosed) ||
+		errors.Is(err, model.ErrEventAlreadyCompleted):
 		code = http.StatusBadRequest
 		message = err.Error()
 	case errors.Is(err, model.ErrDuplicateEmail) || errors.Is(err, model.ErrDuplicateGoogleID) || errors.Is(err, model.ErrVenueInUse):

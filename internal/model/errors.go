@@ -40,6 +40,7 @@ var (
 	ErrInviteOnlyRequiresLink       = errors.New("invite-only events can only be joined through the share link")
 	ErrEventDeadlinePassed          = errors.New("event deadline has passed")
 	ErrParticipantCapReached        = errors.New("participant cap has been reached")
+	ErrRegistrationClosed           = errors.New("registration is temporarily closed")
 	ErrSplitBillParticipantAssigned = errors.New("participant still has split bill items assigned")
 	ErrSplitBillManualAdjustBlocked = errors.New("split bill payment records cannot be adjusted manually")
 	ErrSplitBillChargeAllBlocked    = errors.New("split bill payments cannot use charge all")
