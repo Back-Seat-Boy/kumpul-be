@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -420,6 +421,60 @@ func (u *eventUsecase) Update(ctx context.Context, id string, userID string, req
 	if req.Description != nil {
 		event.Description = *req.Description
 	}
+	return event, nil
+}
+
+func (u *eventUsecase) UpdateRegistration(ctx context.Context, id, userID string, req *model.UpdateEventRegistrationRequest) (*model.Event, error) {
+	logger := log.WithFields(log.Fields{
+		"context": utils.DumpIncomingContext(ctx),
+		"id":      id,
+		"userID":  userID,
+		"req":     utils.Dump(req),
+	})
+
+	event, err := u.eventRepo.FindByID(ctx, id)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	if err := ensureEventNotCancelled(event); err != nil {
+		return nil, err
+	}
+	if event.Status == model.EventStatusCompleted {
+		return nil, model.ErrEventAlreadyCompleted
+	}
+	if event.CreatedBy != userID {
+		return nil, model.ErrForbidden
+	}
+
+	playerCap := req.PlayerCap
+	if playerCap != nil {
+		if *playerCap < 0 {
+			return nil, model.NewAppError(nil, 400, "player cap must be positive")
+		}
+		if *playerCap == 0 {
+			playerCap = nil
+		}
+	}
+
+	if playerCap != nil {
+		participantCount, err := u.participantRepo.CountByEventID(ctx, id)
+		if err != nil {
+			logger.Error(err)
+			return nil, err
+		}
+		if int64(*playerCap) < participantCount {
+			return nil, model.NewAppError(nil, 400, fmt.Sprintf("player cap cannot be lower than current participants (%d)", participantCount))
+		}
+	}
+
+	if err := u.eventRepo.UpdateRegistration(ctx, id, playerCap, req.RegistrationClosed); err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+
+	event.PlayerCap = playerCap
+	event.RegistrationClosed = req.RegistrationClosed
 	return event, nil
 }
 

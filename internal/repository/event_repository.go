@@ -548,6 +548,23 @@ func (r *eventRepo) UpdateDetails(ctx context.Context, id string, title *string,
 	return nil
 }
 
+func (r *eventRepo) UpdateRegistration(ctx context.Context, id string, playerCap *int, closed bool) error {
+	updates := map[string]interface{}{
+		"player_cap":          playerCap,
+		"registration_closed": closed,
+	}
+
+	if err := r.db.WithContext(ctx).Model(&model.Event{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		log.WithFields(log.Fields{
+			"ctx":     utils.DumpIncomingContext(ctx),
+			"id":      id,
+			"updates": updates,
+		}).Error(err)
+		return fmt.Errorf("failed to update event registration: %w", err)
+	}
+	return nil
+}
+
 func (r *eventRepo) UpdateStatus(ctx context.Context, id string, status model.EventStatus) error {
 	updates := map[string]interface{}{"status": status}
 	if status == model.EventStatusCancelled {

@@ -92,6 +92,25 @@ func (h *APIHandler) UpdateEvent(c echo.Context) error {
 	return c.JSON(http.StatusOK, successResponse("Event updated", event))
 }
 
+func (h *APIHandler) UpdateEventRegistration(c echo.Context) error {
+	ctx := c.Request().Context()
+	id := c.Param("id")
+	user := c.Get(string(model.ContextKeyUser)).(UserInfo)
+
+	var req model.UpdateEventRegistrationRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+
+	event, err := h.eventUsecase.UpdateRegistration(ctx, id, user.ID, &req)
+	if err != nil {
+		log.WithFields(log.Fields{"context": utils.DumpIncomingContext(ctx), "id": id, "req": utils.Dump(req)}).Error()
+		return err
+	}
+
+	return c.JSON(http.StatusOK, successResponse("Event registration updated", event))
+}
+
 func (h *APIHandler) UpdateEventStatus(c echo.Context) error {
 	ctx := c.Request().Context()
 	id := c.Param("id")

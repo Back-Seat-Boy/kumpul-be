@@ -85,7 +85,7 @@ func (u *participantUsecase) Join(ctx context.Context, eventID string, userID st
 		"userID":  userID,
 	})
 
-	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
+	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink, userID)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -575,7 +575,7 @@ func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID st
 	})
 
 	// Check event status - can join when status is "open" or "payment_open"
-	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink)
+	_, err := u.checkEventStatusForJoining(ctx, eventID, viaShareLink, userID)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -608,7 +608,7 @@ func (u *participantUsecase) JoinAsGuest(ctx context.Context, userID, eventID st
 	return nil
 }
 
-func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eventID string, viaShareLink bool) (*model.Event, error) {
+func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eventID string, viaShareLink bool, requesterID string) (*model.Event, error) {
 	logger := log.WithFields(log.Fields{
 		"context": utils.DumpIncomingContext(ctx),
 		"eventID": eventID,
@@ -630,6 +630,9 @@ func (u *participantUsecase) checkEventStatusForJoining(ctx context.Context, eve
 	}
 	if event.Visibility == model.EventVisibilityInviteOnly && !viaShareLink {
 		return nil, model.ErrInviteOnlyRequiresLink
+	}
+	if event.RegistrationClosed && requesterID != event.CreatedBy {
+		return nil, model.ErrRegistrationClosed
 	}
 	if event.PlayerCap != nil {
 		participantCount, err := u.participantRepo.CountByEventID(ctx, eventID)
